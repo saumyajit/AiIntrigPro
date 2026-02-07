@@ -1,10 +1,10 @@
 {
     "manifest_version": 2.0,
-    "id": "statuspage",
-    "name": "Status Page",
-    "version": "1.0.2",
+    "id": "statuspagepro",
+    "name": "Status Page Pro",
+    "version": "2.0.1",
     "namespace": "StatusPage",
-    "description": "Compact visual status page for large-scale deployments",
+    "description": "Enhanced Zabbix Status Page with interactive regional charts, top customer alert rankings, and filterable host group grid for enterprise monitoring.",
     "author": "Saumyajit Pramanik",
     "actions": {
         "status.page": {
