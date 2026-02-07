@@ -45,7 +45,7 @@ $selected_tags_json = json_encode($filter_tags);
 
         .status-page-wrapper {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            padding: 20px;
+            padding: 6px;
             background: #f5f7fa;
             min-height: 100vh;
         }
@@ -54,21 +54,26 @@ $selected_tags_json = json_encode($filter_tags);
         .page-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 25px;
+            padding: 8px;
             border-radius: 12px;
-            margin-bottom: 20px;
+            margin-bottom: 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
         .page-header h1 {
             margin: 0 0 8px 0;
-            font-size: 28px;
+			text-align: center;
+			font-family: "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", "Lucida Sans", Tahoma, sans-serif;
+            font-size: 30px;
             font-weight: 600;
+			line-height: 1.2em;
             text-align: center;
         }
 
         .page-subtitle {
-            font-size: 14px;
+            font-size: 18px;
+			text-align: center;
+			font-family: "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", "Lucida Sans", Tahoma, sans-serif;
             opacity: 0.95;
             margin: 0 0 15px 0;
             text-align: center;
@@ -80,9 +85,9 @@ $selected_tags_json = json_encode($filter_tags);
             align-items: center;
             gap: 25px;
             flex-wrap: wrap;
-            padding-top: 15px;
+            padding-top: 6px;
             border-top: 1px solid rgba(255,255,255,0.2);
-            font-size: 13px;
+            font-size: 14px;
         }
 
         .header-legend-label {
@@ -111,7 +116,7 @@ $selected_tags_json = json_encode($filter_tags);
         /* Controls Section */
         .controls-section {
             background: white;
-            padding: 20px;
+            padding: 6px;
             border-radius: 8px;
             margin-bottom: 20px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
@@ -138,7 +143,7 @@ $selected_tags_json = json_encode($filter_tags);
         }
 
         .control-input {
-            padding: 8px 12px;
+            padding: 2px 11px;
             border: 1px solid #ced4da;
             border-radius: 6px;
             background: white;
@@ -599,9 +604,9 @@ $selected_tags_json = json_encode($filter_tags);
         /* Statistics - ENHANCED: Compact single-row layout */
         .statistics-section {
             background: white;
-            padding: 20px;
+            padding: 8px;
             border-radius: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
@@ -642,7 +647,7 @@ $selected_tags_json = json_encode($filter_tags);
         /* Status Page - ENHANCED: New 2-column layout */
         .status-page-section {
             background: white;
-            padding: 20px;
+            padding: 10px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
