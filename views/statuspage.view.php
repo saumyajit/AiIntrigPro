@@ -118,7 +118,7 @@ $selected_tags_json = json_encode($filter_tags);
             background: white;
             padding: 6px;
             border-radius: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
@@ -137,7 +137,7 @@ $selected_tags_json = json_encode($filter_tags);
 
         .control-group label {
             font-weight: 600;
-            font-size: 13px;
+            font-size: 17px;
             color: #495057;
             white-space: nowrap;
         }
@@ -211,12 +211,12 @@ $selected_tags_json = json_encode($filter_tags);
             background: #f8f9fa;
             border: 1px solid #dee2e6;
             border-radius: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
             overflow: hidden;
         }
 
         .filter-header {
-            padding: 15px 20px;
+            padding: 8px 20px;
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             border-bottom: 1px solid #dee2e6;
             display: flex;
@@ -314,36 +314,38 @@ $selected_tags_json = json_encode($filter_tags);
             background: white;
             border: 1px solid #ced4da;
             border-radius: 6px;
-            padding: 15px;
+            padding: 10px;
         }
 
         .time-presets {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 8px;
             margin-bottom: 15px;
         }
 
         .time-preset-btn {
             padding: 8px 12px;
-            background: white;
+            background: #eff1f3;
             border: 2px solid #dee2e6;
             border-radius: 6px;
             font-size: 13px;
             font-weight: 500;
+			color: black;
             cursor: pointer;
             transition: all 0.2s;
             text-align: center;
+			line-height: 5px;
         }
 
         .time-preset-btn:hover {
             border-color: #667eea;
-            background: #f0f4ff;
+            background: #667eea;
         }
 
         .time-preset-btn.active {
             background: #667eea;
-            color: white;
+            color: black;
             border-color: #667eea;
         }
 
