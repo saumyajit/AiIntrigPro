@@ -237,7 +237,7 @@ $selected_tags_json = json_encode($filter_tags);
         }
 
         .filter-title {
-            font-size: 15px;
+            font-size: 18px;
             font-weight: 700;
             color: #333;
             display: flex;
@@ -287,7 +287,7 @@ $selected_tags_json = json_encode($filter_tags);
 
         .filter-label {
             font-weight: 600;
-            font-size: 13px;
+            font-size: 18px;
             color: #495057;
             display: flex;
             align-items: center;
@@ -319,7 +319,7 @@ $selected_tags_json = json_encode($filter_tags);
 
         .time-presets {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 8px;
             margin-bottom: 15px;
         }
@@ -330,6 +330,7 @@ $selected_tags_json = json_encode($filter_tags);
             border: 2px solid #dee2e6;
             border-radius: 6px;
             font-size: 13px;
+			font-family: "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", "Lucida Sans", Tahoma, sans-serif;
             font-weight: 500;
 			color: black;
             cursor: pointer;
@@ -408,7 +409,7 @@ $selected_tags_json = json_encode($filter_tags);
             display: flex;
             align-items: center;
             gap: 8px;
-            padding: 10px;
+            padding: 1px;
             border-radius: 4px;
             cursor: pointer;
             transition: background 0.2s;
@@ -427,7 +428,7 @@ $selected_tags_json = json_encode($filter_tags);
         .severity-option label {
             cursor: pointer;
             flex: 1;
-            font-size: 13px;
+            font-size: 16px;
             color: #495057;
             display: flex;
             align-items: center;
@@ -580,7 +581,7 @@ $selected_tags_json = json_encode($filter_tags);
             gap: 10px;
             align-items: center;
             background: white;
-            padding: 8px 12px;
+            padding: 4px 12px;
             border-radius: 6px;
             border: 1px solid #ced4da;
         }
@@ -639,7 +640,7 @@ $selected_tags_json = json_encode($filter_tags);
         }
 
         .stat-label {
-            font-size: 10px;
+            font-size: 14px;
             font-weight: 600;
             color: #666;
             text-transform: uppercase;
@@ -1344,11 +1345,11 @@ $selected_tags_json = json_encode($filter_tags);
                 </div>
                 <div class="header-legend-item">
                     <span class="header-legend-dot legend-warning"></span>
-                    <span><?= _('Warning') ?></span>
+                    <span><?= _('Low') ?></span>
                 </div>
                 <div class="header-legend-item">
                     <span class="header-legend-dot legend-average"></span>
-                    <span><?= _('Average') ?></span>
+                    <span><?= _('Medium') ?></span>
                 </div>
                 <div class="header-legend-item">
                     <span class="header-legend-dot legend-high"></span>
@@ -1356,7 +1357,7 @@ $selected_tags_json = json_encode($filter_tags);
                 </div>
                 <div class="header-legend-item">
                     <span class="header-legend-dot legend-disaster"></span>
-                    <span><?= _('Disaster') ?></span>
+                    <span><?= _('Critical') ?></span>
                 </div>
                 <div class="header-legend-item">
                     <span style="display: inline-block; width: 18px; height: 14px; border-radius: 6px; background: rgba(255,255,255,0.95); color: #333; text-align: center; font-size: 9px; line-height: 14px; font-weight: bold; border: 1px solid rgba(255,255,255,0.5);">2</span>
@@ -1551,14 +1552,14 @@ $selected_tags_json = json_encode($filter_tags);
 
                     <div class="filter-actions">
                         <div class="logic-selector">
-                            <span style="font-weight: 600; font-size: 13px; color: #495057;"><?= _('Filter Logic:') ?></span>
+                            <span style="font-weight: 600; font-size: 16px; color: #495057;"><?= _('Filter Logic:') ?></span>
                             <div class="logic-option">
                                 <input type="radio"
                                        name="filter_logic"
                                        value="OR"
                                        id="logic_or"
                                        <?= $filter_logic === 'OR' ? 'checked' : '' ?>>
-                                <label for="logic_or" style="cursor: pointer; font-size: 13px;">OR (any match)</label>
+                                <label for="logic_or" style="cursor: pointer; font-size: 15px;">OR (any match)</label>
                             </div>
                             <div class="logic-option">
                                 <input type="radio"
@@ -1566,7 +1567,7 @@ $selected_tags_json = json_encode($filter_tags);
                                        value="AND"
                                        id="logic_and"
                                        <?= $filter_logic === 'AND' ? 'checked' : '' ?>>
-                                <label for="logic_and" style="cursor: pointer; font-size: 13px;">AND (all match)</label>
+                                <label for="logic_and" style="cursor: pointer; font-size: 15px;">AND (all match)</label>
                             </div>
                         </div>
 
@@ -1589,7 +1590,7 @@ $selected_tags_json = json_encode($filter_tags);
             <div class="stats-grid-compact">
                 <div class="stat-card">
                     <div class="stat-value"><?= $statistics['total_groups'] ?></div>
-                    <div class="stat-label"><?= _('Total Groups') ?></div>
+                    <div class="stat-label"><?= _('Customer Group') ?></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value"><?= $statistics['healthy_groups'] ?></div>
@@ -1708,7 +1709,7 @@ $selected_tags_json = json_encode($filter_tags);
 					</div>
 					
 					<div class="top-groups-list">
-						<div class="top-groups-title">🔥 Top 10 Groups by Alerts</div>
+						<div class="top-groups-title">🔥 Top 10 Customer by Alerts</div>
 						<?php
 						// Process existing $groups data to get top 10 by alerts
 						$groups_with_alerts = array_filter($groups, function($group) {
@@ -2012,16 +2013,16 @@ $selected_tags_json = json_encode($filter_tags);
                     html += '<div class="tooltip-severity-list">';
 
                     if (data.severityCounts[5] > 0) {
-                        html += `<div class="severity-item"><span class="severity-disaster-text">● Disaster</span> <span>${data.severityCounts[5]}</span></div>`;
+                        html += `<div class="severity-item"><span class="severity-disaster-text">● Critical</span> <span>${data.severityCounts[5]}</span></div>`;
                     }
                     if (data.severityCounts[4] > 0) {
                         html += `<div class="severity-item"><span class="severity-high-text">● High</span> <span>${data.severityCounts[4]}</span></div>`;
                     }
                     if (data.severityCounts[3] > 0) {
-                        html += `<div class="severity-item"><span class="severity-average-text">● Average</span> <span>${data.severityCounts[3]}</span></div>`;
+                        html += `<div class="severity-item"><span class="severity-average-text">● Medium</span> <span>${data.severityCounts[3]}</span></div>`;
                     }
                     if (data.severityCounts[2] > 0) {
-                        html += `<div class="severity-item"><span class="severity-warning-text">● Warning</span> <span>${data.severityCounts[2]}</span></div>`;
+                        html += `<div class="severity-item"><span class="severity-warning-text">● Low</span> <span>${data.severityCounts[2]}</span></div>`;
                     }
 
                     html += '</div></div>';
