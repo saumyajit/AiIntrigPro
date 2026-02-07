@@ -1,0 +1,15 @@
+{
+    "manifest_version": 2.0,
+    "id": "statuspage",
+    "name": "Status Page",
+    "version": "1.0.2",
+    "namespace": "StatusPage",
+    "description": "Compact visual status page for large-scale deployments",
+    "author": "Saumyajit Pramanik",
+    "actions": {
+        "status.page": {
+            "class": "StatusPageView",
+            "view": "statuspage.view"
+        }
+    }
+}
