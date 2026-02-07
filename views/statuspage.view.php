@@ -1753,13 +1753,7 @@ $selected_tags_json = json_encode($filter_tags);
 							</div>
 						<?php endif; ?>
 					</div>
-
-					<div class="region-filter-hint" id="regionFilterHint">
-						💡 Click to filter by region
-					</div>
-				</div>
-				
-				
+				</div>				
             </div>
         </div>
 
