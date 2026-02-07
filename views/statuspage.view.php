@@ -1495,10 +1495,10 @@ $selected_tags_json = json_encode($filter_tags);
                             <div class="severity-grid">
                                 <?php
                                 $severities = [
-                                    TRIGGER_SEVERITY_DISASTER => ['name' => _('Disaster'), 'class' => 'disaster'],
+                                    TRIGGER_SEVERITY_DISASTER => ['name' => _('Critical'), 'class' => 'disaster'],
                                     TRIGGER_SEVERITY_HIGH => ['name' => _('High'), 'class' => 'high'],
-                                    TRIGGER_SEVERITY_AVERAGE => ['name' => _('Average'), 'class' => 'average'],
-                                    TRIGGER_SEVERITY_WARNING => ['name' => _('Warning'), 'class' => 'warning']
+                                    TRIGGER_SEVERITY_AVERAGE => ['name' => _('Medium'), 'class' => 'average'],
+                                    TRIGGER_SEVERITY_WARNING => ['name' => _('Low'), 'class' => 'warning']
                                 ];
                                 foreach ($severities as $sev_value => $sev_info):
                                     $checked = in_array((string)$sev_value, $filter_severities);
