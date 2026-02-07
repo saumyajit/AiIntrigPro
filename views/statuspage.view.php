@@ -1700,7 +1700,7 @@ $selected_tags_json = json_encode($filter_tags);
 							<canvas id="regionalChart"></canvas>
 							<div class="chart-center-content">
 								<div class="chart-center-value" id="chartCenterValue">0</div>
-								<div class="chart-center-label">Groups</div>
+								<div class="chart-center-label">Customer</div>
 							</div>
 						</div>
 
