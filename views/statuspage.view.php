@@ -657,7 +657,7 @@ $selected_tags_json = json_encode($filter_tags);
 
         .status-with-regional {
             display: grid;
-            grid-template-columns: 3fr 1fr;
+            grid-template-columns: 4fr 1fr;
             gap: 20px;
         }
 
