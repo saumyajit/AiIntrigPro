@@ -1121,6 +1121,10 @@ $selected_tags_json = json_encode($filter_tags);
 		.region-eu { border-left-color: #3498db; }
 		.region-asia { border-left-color: #2ecc71; }
 		.region-aus { border-left-color: #f39c12; }
+		.region-dallas { border-left-color: #9b59b6; }
+		.region-kansas { border-left-color: #e67e22; }
+		.region-slough { border-left-color: #1abc9c; }
+		.region-frankfurt { border-left-color: #34495e; }
 		.region-other { border-left-color: #95a5a6; }
 
 		/* Active filter banner */
@@ -1288,6 +1292,10 @@ $selected_tags_json = json_encode($filter_tags);
 		.region-badge-eu { background: #3498db; }
 		.region-badge-asia { background: #2ecc71; }
 		.region-badge-aus { background: #f39c12; }
+		.region-badge-dallas { background: #9b59b6; }
+		.region-badge-kansas { background: #e67e22; }
+		.region-badge-slough { background: #1abc9c; }
+		.region-badge-frankfurt { background: #34495e; }
 		.region-badge-other { background: #95a5a6; }
 		
 		/* Empty state */
@@ -2102,15 +2110,19 @@ $selected_tags_json = json_encode($filter_tags);
             // ENHANCED: Regional Distribution Pie Chart
 			// Enhanced Regional Distribution Chart
 			const regionalData = <?= json_encode($regional_stats) ?>;
-			const regions = ['US', 'EU', 'Asia', 'Aus', 'Other'];
+			const regions = ['US', 'EU', 'Asia', 'Aus', 'Dallas', 'Kansas', 'Slough', 'Frankfurt', 'Other'];
 
 			// Color scheme
 			const regionColors = {
-				'US': '#e74c3c',
-				'EU': '#3498db',
-				'Asia': '#2ecc71',
-				'Aus': '#f39c12',
-				'Other': '#95a5a6'
+				'US': '#e74c3c',           // Red
+				'EU': '#3498db',           // Blue
+				'Asia': '#2ecc71',         // Green
+				'Aus': '#f39c12',          // Orange
+				'Dallas': '#9b59b6',       // Purple
+				'Kansas': '#e67e22',       // Dark Orange
+				'Slough': '#1abc9c',       // Teal
+				'Frankfurt': '#34495e',    // Dark Gray
+				'Other': '#95a5a6'         // Gray
 			};
 
 			const regionLabels = {
@@ -2118,6 +2130,10 @@ $selected_tags_json = json_encode($filter_tags);
 				'EU': '🇪🇺 Europe',
 				'Asia': '🌏 Asia',
 				'Aus': '🇦🇺 Australia',
+				'Dallas': '🏙️ Dallas',
+				'Kansas': '🌾 Kansas',
+				'Slough': '🇬🇧 Slough',
+				'Frankfurt': '🇩🇪 Frankfurt',
 				'Other': '🌐 Other'
 			};
 
