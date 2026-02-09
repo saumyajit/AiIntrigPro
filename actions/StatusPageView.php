@@ -103,6 +103,7 @@ class StatusPageView extends CController {
             // 1. Fetch host groups starting with "CUSTOMER/"
             $all_host_groups = API::HostGroup()->get([
                 'output' => ['groupid', 'name'],
+				'with_hosts' => true,
                 'preservekeys' => true
             ]);
 
