@@ -971,7 +971,7 @@ $selected_tags_json = json_encode($filter_tags);
 			background: linear-gradient(135deg, #f5f7fa 0%, #e8eef3 100%);
 			border-radius: 8px;
 			border: 2px solid #e0e0e0;
-			padding: 15px;
+			padding: 6px;
 			display: flex;
 			flex-direction: column;
 			min-height: 400px;
@@ -981,7 +981,7 @@ $selected_tags_json = json_encode($filter_tags);
 		}
 
 		.regional-chart-title {
-			font-size: 14px;
+			font-size: 19px;
 			font-weight: 700;
 			color: #333;
 			text-align: center;
@@ -1203,7 +1203,7 @@ $selected_tags_json = json_encode($filter_tags);
 		}
 		
 		.top-groups-title {
-			font-size: 13px;
+			font-size: 18px;
 			font-weight: 700;
 			color: #333;
 			text-transform: uppercase;
@@ -1335,6 +1335,45 @@ $selected_tags_json = json_encode($filter_tags);
 			.top-group-name {
 				max-width: 120px;
 			}
+		}
+		
+		/* FIXED: Top 10 Header Sticks When Scrolling List */
+		.top-groups-list {
+			margin-top: 15px;
+			padding-top: 15px;
+			border-top: 2px solid #dee2e6;
+			height: 300px;              /* Keep height */
+			overflow-y: auto;
+			overflow-x: hidden;
+			position: relative;
+			padding-top: 0;             /* FIXED: Remove top padding */
+		}
+		
+		/* FIXED: Sticky Header */
+		.top-groups-title {
+			font-size: 13px;
+			font-weight: 700;
+			color: #333;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			margin-bottom: 12px;
+			padding: 12px 12px 10px 12px;
+			background: rgba(91, 216, 236, 0.98) !important;  /* FIXED: Solid white */
+			border: 1px solid #e0e0e0;                         /* NEW: Border */
+			backdrop-filter: blur(20px);                       /* FIXED: Stronger blur */
+			-webkit-backdrop-filter: blur(20px);               /* Safari */
+			border-radius: 6px 6px 0 0;
+			position: sticky;
+			top: 0;
+			z-index: 20;
+			box-shadow: 0 4px 12px rgba(0,0,0,0.15);          /* FIXED: Stronger shadow */
+			margin: 0 -12px 12px -12px;
+			text-align: center;
+		}		
+		
+		/* Ensure list items scroll under header */
+		.top-group-item {
+			margin-top: 0 !important; /* NEW: Prevent margin pushing */
 		}
     </style>
 </head>
