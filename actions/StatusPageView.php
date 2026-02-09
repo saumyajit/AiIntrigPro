@@ -57,13 +57,14 @@ class StatusPageView extends CController {
             'filter_alerts' => 'in 0,1',
             'search' => 'string',
             'refresh' => 'in 0,1',
+            'auto_refresh' => 'string',
             // Filter fields
             'filter_severities' => 'array',
             'filter_tags' => 'array',
             'filter_alert_name' => 'string',
             'filter_logic' => 'in AND,OR',
             // Time range fields
-            'filter_time_range' => 'in 1h,3h,6h,12h,24h,3d,7d,15d,30d,custom',
+            'filter_time_range' => 'string',
             'filter_time_from' => 'string',
             'filter_time_to' => 'string'
         ];
@@ -553,70 +554,59 @@ class StatusPageView extends CController {
                     }
                 }
 
-                // Apply filter logic at GROUP level
-                $include_group = true;
-                
-                if ($has_active_filters) {
-                    if ($filter_logic === 'OR') {
-                        // OR: Include if matches ANY filter
-                        $include_group = false; // Start with false
-                        
-                        if (!empty($filter_severities) && $matches_severity) {
-                            $include_group = true;
-                        }
-                        if (!empty($filter_tags) && $matches_tag) {
-                            $include_group = true;
-                        }
-                        if (!empty($filter_alert_name) && $matches_name) {
-                            $include_group = true;
-                        }
-                        if (!empty($filter_time_range) && $matches_time) {
-                            $include_group = true;
-                        }
-                        
-                        // If no specific filters set (only time), show groups with alerts
-                        if (empty($filter_severities) && empty($filter_tags) && empty($filter_alert_name) && !empty($filter_time_range)) {
-                            $include_group = !$is_healthy;
-                        }
-                        
-                    } else {
-                        // AND: Include only if matches ALL filters
-                        $include_group = true; // Start with true
-                        
-                        if (!empty($filter_severities) && !$matches_severity) {
-                            $include_group = false;
-                        }
-                        if (!empty($filter_tags) && !$matches_tag) {
-                            $include_group = false;
-                        }
-                        if (!empty($filter_alert_name) && !$matches_name) {
-                            $include_group = false;
-                        }
-                        if (!empty($filter_time_range) && !$matches_time) {
-                            $include_group = false;
-                        }
-                    }
-                    
-                    // Skip healthy groups when filters are active
-                    if ($is_healthy) {
-                        $include_group = false;
-                    }
-                }
-
-                if ($include_group || !$has_active_filters) {
-                    $groups_data[] = [
-                        'groupid' => $groupid,
-                        'name' => $group['name'],
-                        'short_name' => str_replace('CUSTOMER/', '', $group['name']),
-                        'alert_count' => $alert_count,
-                        'is_healthy' => $is_healthy,
-                        'highest_severity' => $highest_severity,
-                        'severity_counts' => $severity_counts,
-                        'alert_details' => $alert_details,
-                        'tags' => array_keys($group_tags),
-                        'region' => $group_region
-                    ];
-                }
+				// Apply filter logic at GROUP level
+				$include_group = true;
+				
+				if ($has_active_filters) {
+					if ($filter_logic === 'OR') {
+						// OR: Include if matches ANY filter (severity, tag, or name)
+						$include_group = false; // Start with false
+						
+						if (!empty($filter_severities) && $matches_severity) {
+							$include_group = true;
+						}
+						if (!empty($filter_tags) && $matches_tag) {
+							$include_group = true;
+						}
+						if (!empty($filter_alert_name) && $matches_name) {
+							$include_group = true;
+						}
+						
+					} else {
+						// AND: Include only if matches ALL active filters
+						$include_group = true; // Start with true
+						
+						if (!empty($filter_severities) && !$matches_severity) {
+							$include_group = false;
+						}
+						if (!empty($filter_tags) && !$matches_tag) {
+							$include_group = false;
+						}
+						if (!empty($filter_alert_name) && !$matches_name) {
+							$include_group = false;
+						}
+					}
+					
+					// Skip healthy groups when filters are active
+					if ($is_healthy) {
+						$include_group = false;
+					}
+				}
+				
+				if ($include_group || !$has_active_filters) {
+					$groups_data[] = [
+						'groupid' => $groupid,
+						'name' => $group['name'],
+						'short_name' => str_replace('CUSTOMER/', '', $group['name']),
+						'alert_count' => $alert_count,
+						'is_healthy' => $is_healthy,
+						'highest_severity' => $highest_severity,
+						'severity_counts' => $severity_counts,
+						'alert_details' => $alert_details,
+						'tags' => array_keys($group_tags),
+						'region' => $group_region
+					];
+				}
             }
 
             // Apply "show only groups with alerts" filter
