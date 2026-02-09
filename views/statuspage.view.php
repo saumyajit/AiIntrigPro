@@ -1351,7 +1351,7 @@ $selected_tags_json = json_encode($filter_tags);
 		
 		/* FIXED: Sticky Header */
 		.top-groups-title {
-			font-size: 13px;
+			font-size: 18px;
 			font-weight: 700;
 			color: #333;
 			text-transform: uppercase;
