@@ -2041,7 +2041,7 @@ $selected_tags_json = json_encode($filter_tags);
                 circle.addEventListener('click', function() {
                     const groupid = this.dataset.groupid;
                     if (groupid) {
-                        window.open(`zabbix.php?action=hostgroup.edit&groupid=${groupid}`, '_blank');
+                        window.open(`zabbix.php?show=3&name=&acknowledgement_status=0&inventory%5B0%5D%5Bfield%5D=type&inventory%5B0%5D%5Bvalue%5D=&evaltype=0&tags%5B0%5D%5Btag%5D=&tags%5B0%5D%5Boperator%5D=0&tags%5B0%5D%5Bvalue%5D=&show_tags=3&tag_name_format=0&tag_priority=&show_opdata=0&show_timeline=1&filter_name=&filter_show_counter=0&filter_custom_time=0&sort=clock&sortorder=DESC&age_state=0&show_symptoms=0&show_suppressed=0&acknowledged_by_me=0&compact_view=0&details=0&highlight_row=0&action=problem.view&groupids%5B%5D=${groupid}`, '_blank');
                     }
                 });
             });
