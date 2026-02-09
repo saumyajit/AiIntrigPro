@@ -10,6 +10,42 @@ use API;
 
 class StatusPageView extends CController {
 
+    // Region mapping configurations
+    private $proxy_group_mappings = [
+        'AUSTRALIA_PROXY_GROUP' => 'Aus',
+        'ASIA_PROXY_GROUP' => 'Asia',
+        'EU_PROXY_GROUP' => 'EU',
+        'US_PROXY_GROUP' => 'US',
+        'DL_PROXY_GROUP' => 'Dallas',
+        'KC_PROXY_GROUP' => 'Kansas',
+        'SL1_PROXY_GROUP' => 'Slough',
+        'FR1_PROXY_GROUP' => 'Frankfurt',
+    ];
+    
+    private $proxy_name_patterns = [
+        'AUS' => 'Aus',
+        'ASIA_' => 'Asia',
+        'EU_NORTH' => 'EU',
+        'EU_WEST' => 'EU',
+        'US_CENTRAL' => 'US',
+        'US_EAST' => 'US',
+        'FR1_' => 'Frankfurt',
+        'DL_' => 'Dallas',
+        'KC_' => 'Kansas',
+        'SL1_' => 'Slough',
+    ];
+    
+    private $region_tag_patterns = [
+        'AUS_' => 'Aus',
+        'ASIA_' => 'Asia',
+        'EU_' => 'EU',
+        'US_' => 'US',
+        'FRANKFURT' => 'Frankfurt',
+        'DALLAS' => 'Dallas',
+        'KANSAS' => 'Kansas',
+        'SLOUGH' => 'Slough',
+    ];
+
     protected function init(): void {
         $this->disableCsrfValidation();
     }
@@ -43,6 +79,110 @@ class StatusPageView extends CController {
 
     protected function checkPermissions(): bool {
         return $this->getUserType() >= USER_TYPE_ZABBIX_USER;
+    }
+
+    /**
+     * Detect region for a host using configured mappings
+     */
+    private function detectRegionForHost($host, $proxy_to_groups, $proxies) {
+        $detected_region = 'Other';
+        
+        // METHOD 1: Check host tags for "Region"
+        if (!empty($host['tags'])) {
+            foreach ($host['tags'] as $tag) {
+                if (strtolower($tag['tag']) === 'region') {
+                    $region_value = strtoupper(trim($tag['value']));
+                    
+                    // Check against region tag patterns
+                    foreach ($this->region_tag_patterns as $pattern => $region) {
+                        if (strpos($region_value, $pattern) === 0) {
+                            return $region;
+                        }
+                    }
+                    
+                    // Fallback: check if value contains any pattern
+                    foreach ($this->region_tag_patterns as $pattern => $region) {
+                        if (stripos($region_value, $pattern) !== false) {
+                            return $region;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // METHOD 2: Check proxy group mapping
+        if ($detected_region === 'Other' && !empty($host['effective_proxyid']) && isset($proxies[$host['effective_proxyid']])) {
+            $proxyid = $host['effective_proxyid'];
+            
+            if (isset($proxy_to_groups[$proxyid]) && !empty($proxy_to_groups[$proxyid])) {
+                foreach ($proxy_to_groups[$proxyid] as $group_name) {
+                    // Check exact match first
+                    if (isset($this->proxy_group_mappings[$group_name])) {
+                        return $this->proxy_group_mappings[$group_name];
+                    }
+                    
+                    // Check partial match
+                    $group_name_upper = strtoupper($group_name);
+                    foreach ($this->proxy_group_mappings as $pattern => $region) {
+                        if (stripos($group_name_upper, strtoupper($pattern)) !== false) {
+                            return $region;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // METHOD 3: Check proxy name patterns
+        if ($detected_region === 'Other' && !empty($host['effective_proxyid']) && isset($proxies[$host['effective_proxyid']])) {
+            $proxy = $proxies[$host['effective_proxyid']];
+            $proxy_name_upper = strtoupper($proxy['name']);
+            
+            // Check proxy name patterns (order matters - check longer patterns first)
+            $patterns_sorted = $this->proxy_name_patterns;
+            uksort($patterns_sorted, function($a, $b) {
+                return strlen($b) - strlen($a);
+            });
+            
+            foreach ($patterns_sorted as $pattern => $region) {
+                if (strpos($proxy_name_upper, strtoupper($pattern)) !== false) {
+                    return $region;
+                }
+            }
+        }
+        
+        return $detected_region;
+    }
+
+    /**
+     * Get all unique regions from configured mappings
+     */
+    private function getAllRegions() {
+        $regions = ['Other'];
+        
+        // Collect all unique regions from all mappings
+        $all_regions = array_merge(
+            array_values($this->proxy_group_mappings),
+            array_values($this->proxy_name_patterns),
+            array_values($this->region_tag_patterns)
+        );
+        
+        $regions = array_merge($regions, array_unique($all_regions));
+        
+        return $regions;
+    }
+
+    /**
+     * Initialize regional statistics array
+     */
+    private function initializeRegionalStats() {
+        $stats = [];
+        $regions = $this->getAllRegions();
+        
+        foreach ($regions as $region) {
+            $stats[$region] = ['healthy' => 0, 'alerts' => 0, 'total' => 0];
+        }
+        
+        return $stats;
     }
 
     protected function doAction(): void {
@@ -104,6 +244,7 @@ class StatusPageView extends CController {
             $all_host_groups = API::HostGroup()->get([
                 'output' => ['groupid', 'name'],
 				'with_hosts' => true,
+				'with_monitored_hosts' => true,
                 'preservekeys' => true
             ]);
 
@@ -117,14 +258,28 @@ class StatusPageView extends CController {
 
             // 2. Fetch hosts for these groups with tags and proxy info
             $hosts = API::Host()->get([
-                'output' => ['hostid', 'host', 'name', 'status', 'proxy_hostid'],
+                'output' => ['hostid', 'host', 'name', 'status', 'proxyid', 'proxy_groupid', 'assigned_proxyid', 'monitored_by'],
                 'groupids' => array_keys($customer_groups),
-                'selectHostGroups' => ['groupid'],
+                'selectHostGroups' => ['groupid', 'name'],
                 'selectTags' => ['tag', 'value'],
                 'monitored_hosts' => true,
                 'preservekeys' => true
             ]);
             
+			foreach ($hosts as &$h) {
+				// Case 1: classic proxy assignment
+				if (!empty($h['proxyid']) && $h['proxyid'] !== '0') {
+					$h['effective_proxyid'] = $h['proxyid'];
+				}
+				// Case 2: monitored by proxy group, use assigned_proxyid if present
+				elseif (!empty($h['assigned_proxyid']) && $h['assigned_proxyid'] !== '0') {
+					$h['effective_proxyid'] = $h['assigned_proxyid'];
+				} else {
+					$h['effective_proxyid'] = null;
+				}
+			}
+			unset($h);
+			
             // Fetch proxies for region detection
             $proxies = API::Proxy()->get([
                 'output' => ['proxyid', 'name'],
@@ -234,14 +389,8 @@ class StatusPageView extends CController {
                 'filtered_groups' => 0
             ];
             
-            // Regional statistics
-            $regional_stats = [
-                'US' => ['healthy' => 0, 'alerts' => 0, 'total' => 0],
-                'EU' => ['healthy' => 0, 'alerts' => 0, 'total' => 0],
-                'Asia' => ['healthy' => 0, 'alerts' => 0, 'total' => 0],
-                'Aus' => ['healthy' => 0, 'alerts' => 0, 'total' => 0],
-                'Other' => ['healthy' => 0, 'alerts' => 0, 'total' => 0]
-            ];
+            // Regional statistics - dynamically initialize based on configured regions
+            $regional_stats = $this->initializeRegionalStats();
 
             $has_active_filters = !empty($filter_severities) || !empty($filter_tags) || !empty($filter_alert_name) || !empty($filter_time_range);
 
@@ -259,125 +408,39 @@ class StatusPageView extends CController {
                 $alert_details = [];
                 $group_tags = [];
                 
-				// Detect region for this group
-				$group_region = 'Other';
-				$region_votes = [];
-				
-				// Check all hosts in this group for region
-				foreach ($hosts as $host) {
-					if (!isset($host['hostgroups'])) continue;
-					
-					$in_this_group = false;
-					foreach ($host['hostgroups'] as $hg) {
-						if ($hg['groupid'] == $groupid) {
-							$in_this_group = true;
-							break;
-						}
-					}
-					
-					if (!$in_this_group) continue;
-					
-					$detected_region = 'Other';
-					
-					// ========== METHOD 1: Check host tags for "Region" ==========
-					if (!empty($host['tags'])) {
-						foreach ($host['tags'] as $tag) {
-							// Check if tag name is "Region" (case-insensitive)
-							if (strtolower($tag['tag']) === 'region') {
-								$region_value = strtoupper(trim($tag['value']));
-								
-								// Direct matches
-								if ($region_value === 'US' || $region_value === 'USA') {
-									$detected_region = 'US';
-								} elseif ($region_value === 'EU' || $region_value === 'EUROPE') {
-									$detected_region = 'EU';
-								} elseif ($region_value === 'ASIA') {
-									$detected_region = 'Asia';
-								} elseif ($region_value === 'AUS' || $region_value === 'AUSTRALIA') {
-									$detected_region = 'Aus';
-								}
-								// Partial matches (e.g., "AUS_EAST", "US_WEST")
-								elseif (strpos($region_value, 'AUS') === 0) {
-									// Starts with AUS (AUS_EAST, AUS_SOUTH_EAST, etc.)
-									$detected_region = 'Aus';
-								} elseif (strpos($region_value, 'US') === 0 && strpos($region_value, 'AUS') !== 0) {
-									// Starts with US but not AUS (US_EAST, US_WEST, etc.)
-									$detected_region = 'US';
-								} elseif (strpos($region_value, 'EU') === 0) {
-									// Starts with EU (EU_WEST, EU_CENTRAL, etc.)
-									$detected_region = 'EU';
-								} elseif (strpos($region_value, 'ASIA') === 0) {
-									// Starts with ASIA (ASIA_PACIFIC, etc.)
-									$detected_region = 'Asia';
-								}
-								// Contains region keywords
-								elseif (stripos($region_value, 'AUSTRALIA') !== false) {
-									$detected_region = 'Aus';
-								} elseif (stripos($region_value, 'EUROPE') !== false) {
-									$detected_region = 'EU';
-								}
-								
-								break; // Found region tag, stop searching
-							}
-						}
-					}
-					
-					// ========== METHOD 2: Check proxy group and proxy name ==========
-					if ($detected_region === 'Other' && !empty($host['proxy_hostid']) && isset($proxies[$host['proxy_hostid']])) {
-						$proxyid = $host['proxy_hostid'];
-						$proxy = $proxies[$proxyid];
-						
-						// First check proxy groups
-						if (isset($proxy_to_groups[$proxyid]) && !empty($proxy_to_groups[$proxyid])) {
-							foreach ($proxy_to_groups[$proxyid] as $group_name) {
-								$group_name_upper = strtoupper($group_name);
-								
-								// Check for AUS first (to avoid matching AUS as US)
-								if (strpos($group_name_upper, 'AUS') !== false) {
-									$detected_region = 'Aus';
-									break;
-								} elseif (strpos($group_name_upper, 'US') !== false && strpos($group_name_upper, 'AUS') === false) {
-									$detected_region = 'US';
-									break;
-								} elseif (strpos($group_name_upper, 'EU') !== false || strpos($group_name_upper, 'EUROPE') !== false) {
-									$detected_region = 'EU';
-									break;
-								} elseif (strpos($group_name_upper, 'ASIA') !== false) {
-									$detected_region = 'Asia';
-									break;
-								}
-							}
-						}
-						
-						// If still not found, check proxy name
-						if ($detected_region === 'Other') {
-							$proxy_name_upper = strtoupper($proxy['name']);
-							
-							// Check for AUS first (to avoid matching AUS as US)
-							if (strpos($proxy_name_upper, 'AUS') !== false) {
-								$detected_region = 'Aus';
-							} elseif (strpos($proxy_name_upper, 'US') !== false && strpos($proxy_name_upper, 'AUS') === false) {
-								$detected_region = 'US';
-							} elseif (strpos($proxy_name_upper, 'EU') !== false || strpos($proxy_name_upper, 'EUROPE') !== false) {
-								$detected_region = 'EU';
-							} elseif (strpos($proxy_name_upper, 'ASIA') !== false) {
-								$detected_region = 'Asia';
-							}
-						}
-					}
-					
-					// Vote for region
-					if (!isset($region_votes[$detected_region])) {
-						$region_votes[$detected_region] = 0;
-					}
-					$region_votes[$detected_region]++;
-				}
-				
-				// Majority vote wins
-				if (!empty($region_votes)) {
-					arsort($region_votes);
-					$group_region = array_key_first($region_votes);
-				}
+                // Detect region for this group using new mapping-based method
+                $group_region = 'Other';
+                $region_votes = [];
+                
+                // Check all hosts in this group for region
+                foreach ($hosts as $host) {
+                    if (!isset($host['hostgroups'])) continue;
+                    
+                    $in_this_group = false;
+                    foreach ($host['hostgroups'] as $hg) {
+                        if ($hg['groupid'] == $groupid) {
+                            $in_this_group = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!$in_this_group) continue;
+                    
+                    // Use the new detection method
+                    $detected_region = $this->detectRegionForHost($host, $proxy_to_groups, $proxies);
+                    
+                    // Vote for region
+                    if (!isset($region_votes[$detected_region])) {
+                        $region_votes[$detected_region] = 0;
+                    }
+                    $region_votes[$detected_region]++;
+                }
+                
+                // Majority vote wins
+                if (!empty($region_votes)) {
+                    arsort($region_votes);
+                    $group_region = array_key_first($region_votes);
+                }
                 
                 // Flags for OR/AND logic
                 $matches_severity = false;
@@ -613,7 +676,9 @@ class StatusPageView extends CController {
             }
 
         } catch (\Exception $e) {
-            // Error handling
+            // Error handling - dynamically initialize regional stats for error case too
+            $regional_stats = $this->initializeRegionalStats();
+            
             $data = [
                 'statistics' => [
                     'total_groups' => 0,
@@ -628,13 +693,7 @@ class StatusPageView extends CController {
                     'health_percentage' => 0,
                     'filtered_groups' => 0
                 ],
-                'regional_stats' => [
-                    'US' => ['healthy' => 0, 'alerts' => 0, 'total' => 0],
-                    'EU' => ['healthy' => 0, 'alerts' => 0, 'total' => 0],
-                    'Asia' => ['healthy' => 0, 'alerts' => 0, 'total' => 0],
-                    'Aus' => ['healthy' => 0, 'alerts' => 0, 'total' => 0],
-                    'Other' => ['healthy' => 0, 'alerts' => 0, 'total' => 0]
-                ],
+                'regional_stats' => $regional_stats,
                 'groups' => [],
                 'all_tags' => [],
                 'popular_tags' => [],
