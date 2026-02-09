@@ -193,6 +193,7 @@ class StatusPageView extends CController {
         $filter_alerts = $this->hasInput('filter_alerts') ? (bool)$this->getInput('filter_alerts') : false;
         $search = $this->getInput('search', '');
         $refresh = $this->hasInput('refresh') ? (bool)$this->getInput('refresh') : false;
+        $auto_refresh = $this->getInput('auto_refresh', 'off');
         
         // Filters
         $filter_severities = $this->getInput('filter_severities', []);
@@ -658,6 +659,7 @@ class StatusPageView extends CController {
                 'filter_time_from' => $filter_time_from,
                 'filter_time_to' => $filter_time_to,
                 'refresh' => $refresh,
+                'auto_refresh' => $auto_refresh,
                 'error' => null
             ];
 
@@ -699,6 +701,7 @@ class StatusPageView extends CController {
                 'filter_time_from' => $filter_time_from,
                 'filter_time_to' => $filter_time_to,
                 'refresh' => $refresh,
+                'auto_refresh' => $auto_refresh,
                 'error' => $e->getMessage()
             ];
             
