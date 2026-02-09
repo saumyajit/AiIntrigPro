@@ -258,101 +258,125 @@ class StatusPageView extends CController {
                 $alert_details = [];
                 $group_tags = [];
                 
-                // Detect region for this group
-                $group_region = 'Other';
-                $region_votes = [];
-                
-                // Check all hosts in this group for region
-                foreach ($hosts as $host) {
-                    if (!isset($host['hostgroups'])) continue;
-                    
-                    $in_this_group = false;
-                    foreach ($host['hostgroups'] as $hg) {
-                        if ($hg['groupid'] == $groupid) {
-                            $in_this_group = true;
-                            break;
-                        }
-                    }
-                    
-                    if (!$in_this_group) continue;
-                    
-                    $detected_region = 'Other';
-                    
-                    // Method 1: Check host tags for "Region"
-                    if (!empty($host['tags'])) {
-                        foreach ($host['tags'] as $tag) {
-                            if (strtolower($tag['tag']) === 'region') {
-                                $region_value = strtoupper(trim($tag['value']));
-                                if (in_array($region_value, ['US', 'EU', 'ASIA', 'AUS'])) {
-                                    $detected_region = $region_value === 'AUS' ? 'Aus' : $region_value;
-                                } elseif (stripos($region_value, 'US') !== false) {
-                                    $detected_region = 'US';
-                                } elseif (stripos($region_value, 'EU') !== false || stripos($region_value, 'EUROPE') !== false) {
-                                    $detected_region = 'EU';
-                                } elseif (stripos($region_value, 'ASIA') !== false) {
-                                    $detected_region = 'Asia';
-                                } elseif (stripos($region_value, 'AUS') !== false || stripos($region_value, 'AUSTRALIA') !== false) {
-                                    $detected_region = 'Aus';
-                                }
-                                break;
-                            }
-                        }
-                    }
-                    
-                    // Method 2: Fallback to proxy group name, then proxy name if no region tag
-                    if ($detected_region === 'Other' && !empty($host['proxy_hostid']) && isset($proxies[$host['proxy_hostid']])) {
-                        $proxyid = $host['proxy_hostid'];
-                        $proxy = $proxies[$proxyid];
-                        
-                        // First check proxy groups
-                        if (isset($proxy_to_groups[$proxyid]) && !empty($proxy_to_groups[$proxyid])) {
-                            foreach ($proxy_to_groups[$proxyid] as $group_name) {
-                                $group_name_upper = strtoupper($group_name);
-                                
-                                if (stripos($group_name_upper, 'US') !== false) {
-                                    $detected_region = 'US';
-                                    break;
-                                } elseif (stripos($group_name_upper, 'EU') !== false || stripos($group_name_upper, 'EUROPE') !== false) {
-                                    $detected_region = 'EU';
-                                    break;
-                                } elseif (stripos($group_name_upper, 'ASIA') !== false) {
-                                    $detected_region = 'Asia';
-                                    break;
-                                } elseif (stripos($group_name_upper, 'AUS') !== false || stripos($group_name_upper, 'AUSTRALIA') !== false) {
-                                    $detected_region = 'Aus';
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        // If still not found, check proxy name
-                        if ($detected_region === 'Other') {
-                            $proxy_name = strtoupper($proxy['name']);
-                            
-                            if (stripos($proxy_name, 'US') !== false) {
-                                $detected_region = 'US';
-                            } elseif (stripos($proxy_name, 'EU') !== false || stripos($proxy_name, 'EUROPE') !== false) {
-                                $detected_region = 'EU';
-                            } elseif (stripos($proxy_name, 'ASIA') !== false) {
-                                $detected_region = 'Asia';
-                            } elseif (stripos($proxy_name, 'AUS') !== false || stripos($proxy_name, 'AUSTRALIA') !== false) {
-                                $detected_region = 'Aus';
-                            }
-                        }
-                    }
-                    
-                    // Vote for region
-                    if (!isset($region_votes[$detected_region])) {
-                        $region_votes[$detected_region] = 0;
-                    }
-                    $region_votes[$detected_region]++;
-                }
-                
-                // Majority vote wins
-                if (!empty($region_votes)) {
-                    arsort($region_votes);
-                    $group_region = array_key_first($region_votes);
-                }
+				// Detect region for this group
+				$group_region = 'Other';
+				$region_votes = [];
+				
+				// Check all hosts in this group for region
+				foreach ($hosts as $host) {
+					if (!isset($host['hostgroups'])) continue;
+					
+					$in_this_group = false;
+					foreach ($host['hostgroups'] as $hg) {
+						if ($hg['groupid'] == $groupid) {
+							$in_this_group = true;
+							break;
+						}
+					}
+					
+					if (!$in_this_group) continue;
+					
+					$detected_region = 'Other';
+					
+					// ========== METHOD 1: Check host tags for "Region" ==========
+					if (!empty($host['tags'])) {
+						foreach ($host['tags'] as $tag) {
+							// Check if tag name is "Region" (case-insensitive)
+							if (strtolower($tag['tag']) === 'region') {
+								$region_value = strtoupper(trim($tag['value']));
+								
+								// Direct matches
+								if ($region_value === 'US' || $region_value === 'USA') {
+									$detected_region = 'US';
+								} elseif ($region_value === 'EU' || $region_value === 'EUROPE') {
+									$detected_region = 'EU';
+								} elseif ($region_value === 'ASIA') {
+									$detected_region = 'Asia';
+								} elseif ($region_value === 'AUS' || $region_value === 'AUSTRALIA') {
+									$detected_region = 'Aus';
+								}
+								// Partial matches (e.g., "AUS_EAST", "US_WEST")
+								elseif (strpos($region_value, 'AUS') === 0) {
+									// Starts with AUS (AUS_EAST, AUS_SOUTH_EAST, etc.)
+									$detected_region = 'Aus';
+								} elseif (strpos($region_value, 'US') === 0 && strpos($region_value, 'AUS') !== 0) {
+									// Starts with US but not AUS (US_EAST, US_WEST, etc.)
+									$detected_region = 'US';
+								} elseif (strpos($region_value, 'EU') === 0) {
+									// Starts with EU (EU_WEST, EU_CENTRAL, etc.)
+									$detected_region = 'EU';
+								} elseif (strpos($region_value, 'ASIA') === 0) {
+									// Starts with ASIA (ASIA_PACIFIC, etc.)
+									$detected_region = 'Asia';
+								}
+								// Contains region keywords
+								elseif (stripos($region_value, 'AUSTRALIA') !== false) {
+									$detected_region = 'Aus';
+								} elseif (stripos($region_value, 'EUROPE') !== false) {
+									$detected_region = 'EU';
+								}
+								
+								break; // Found region tag, stop searching
+							}
+						}
+					}
+					
+					// ========== METHOD 2: Check proxy group and proxy name ==========
+					if ($detected_region === 'Other' && !empty($host['proxy_hostid']) && isset($proxies[$host['proxy_hostid']])) {
+						$proxyid = $host['proxy_hostid'];
+						$proxy = $proxies[$proxyid];
+						
+						// First check proxy groups
+						if (isset($proxy_to_groups[$proxyid]) && !empty($proxy_to_groups[$proxyid])) {
+							foreach ($proxy_to_groups[$proxyid] as $group_name) {
+								$group_name_upper = strtoupper($group_name);
+								
+								// Check for AUS first (to avoid matching AUS as US)
+								if (strpos($group_name_upper, 'AUS') !== false) {
+									$detected_region = 'Aus';
+									break;
+								} elseif (strpos($group_name_upper, 'US') !== false && strpos($group_name_upper, 'AUS') === false) {
+									$detected_region = 'US';
+									break;
+								} elseif (strpos($group_name_upper, 'EU') !== false || strpos($group_name_upper, 'EUROPE') !== false) {
+									$detected_region = 'EU';
+									break;
+								} elseif (strpos($group_name_upper, 'ASIA') !== false) {
+									$detected_region = 'Asia';
+									break;
+								}
+							}
+						}
+						
+						// If still not found, check proxy name
+						if ($detected_region === 'Other') {
+							$proxy_name_upper = strtoupper($proxy['name']);
+							
+							// Check for AUS first (to avoid matching AUS as US)
+							if (strpos($proxy_name_upper, 'AUS') !== false) {
+								$detected_region = 'Aus';
+							} elseif (strpos($proxy_name_upper, 'US') !== false && strpos($proxy_name_upper, 'AUS') === false) {
+								$detected_region = 'US';
+							} elseif (strpos($proxy_name_upper, 'EU') !== false || strpos($proxy_name_upper, 'EUROPE') !== false) {
+								$detected_region = 'EU';
+							} elseif (strpos($proxy_name_upper, 'ASIA') !== false) {
+								$detected_region = 'Asia';
+							}
+						}
+					}
+					
+					// Vote for region
+					if (!isset($region_votes[$detected_region])) {
+						$region_votes[$detected_region] = 0;
+					}
+					$region_votes[$detected_region]++;
+				}
+				
+				// Majority vote wins
+				if (!empty($region_votes)) {
+					arsort($region_votes);
+					$group_region = array_key_first($region_votes);
+				}
                 
                 // Flags for OR/AND logic
                 $matches_severity = false;
