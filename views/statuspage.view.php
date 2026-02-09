@@ -17,6 +17,7 @@ $filter_time_range = $data['filter_time_range'] ?? '';
 $filter_time_from = $data['filter_time_from'] ?? '';
 $filter_time_to = $data['filter_time_to'] ?? '';
 $error = $data['error'] ?? null;
+$auto_refresh = $data['auto_refresh'] ?? 'off';
 
 // Spacing values
 $spacing_map = [
@@ -1458,6 +1459,17 @@ $selected_tags_json = json_encode($filter_tags);
                         <span>🔄</span>
                         <?= _('Refresh') ?>
                     </button>
+					
+					<div class="control-group">
+						<label for="auto_refresh"><?= _('Auto-Refresh:') ?></label>
+						<select name="auto_refresh" id="auto_refresh" class="control-input">
+							<option value="off" <?= $auto_refresh === 'off' ? 'selected' : '' ?>>Off</option>
+							<option value="15" <?= $auto_refresh === '15' ? 'selected' : '' ?>>15 min</option>
+							<option value="30" <?= $auto_refresh === '30' ? 'selected' : '' ?>>30 min</option>
+							<option value="60" <?= $auto_refresh === '60' ? 'selected' : '' ?>>60 min</option>
+						</select>
+					</div>
+					
                 </div>
             </form>
         </div>
@@ -2122,6 +2134,67 @@ $selected_tags_json = json_encode($filter_tags);
                 currentUrl.searchParams.set('refresh', '1');
                 window.location.href = currentUrl.toString();
             });
+
+			// Auto-Refresh functionality
+			(function() {
+				const autoRefreshSelect = document.getElementById('auto_refresh');
+				let autoRefreshTimer = null;
+				let countdownTimer = null;
+				
+				function setupAutoRefresh() {
+					// Clear existing timers
+					if (autoRefreshTimer) {
+						clearTimeout(autoRefreshTimer);
+						autoRefreshTimer = null;
+					}
+					if (countdownTimer) {
+						clearInterval(countdownTimer);
+						countdownTimer = null;
+					}
+					
+					const autoRefreshValue = autoRefreshSelect.value;
+					
+					if (autoRefreshValue !== 'off') {
+						const minutes = parseInt(autoRefreshValue);
+						const milliseconds = minutes * 60 * 1000;
+						
+						console.log(`Auto-refresh enabled: ${minutes} minutes`);
+						
+						// Set the main refresh timer
+						autoRefreshTimer = setTimeout(function() {
+							console.log('Auto-refreshing page...');
+							document.getElementById('loadingOverlay').classList.add('active');
+							
+							// Preserve auto_refresh setting in URL
+							const currentUrl = new URL(window.location.href);
+							currentUrl.searchParams.set('auto_refresh', autoRefreshValue);
+							currentUrl.searchParams.set('refresh', '1');
+							window.location.href = currentUrl.toString();
+						}, milliseconds);
+						
+						// Optional: Show countdown in console every minute
+						let remainingMinutes = minutes;
+						countdownTimer = setInterval(function() {
+							remainingMinutes--;
+							if (remainingMinutes > 0) {
+								console.log(`Auto-refresh in ${remainingMinutes} minute(s)...`);
+							}
+						}, 60000); // Every minute
+						
+					} else {
+						console.log('Auto-refresh disabled');
+					}
+				}
+				
+				// Initialize auto-refresh on page load
+				setupAutoRefresh();
+				
+				// Update auto-refresh when dropdown changes
+				autoRefreshSelect.addEventListener('change', function() {
+					// Submit form to save the preference
+					document.getElementById('mainForm').submit();
+				});
+			})();
 
             // Clear filters button
             document.getElementById('clearFilters').addEventListener('click', function(e) {
