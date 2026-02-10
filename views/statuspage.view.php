@@ -1382,7 +1382,7 @@ $selected_tags_json = json_encode($filter_tags);
     <div class="status-page-wrapper">
         <!-- Header with Legend -->
         <div class="page-header">
-            <h1><?= _('Status Dashboard') ?></h1>
+            <h1><?= _('🚦Status Dashboard') ?></h1>
             <p class="page-subtitle"><?= _('Visual overview of customer host groups') ?></p>
 
             <div class="header-legend">
