@@ -329,6 +329,25 @@ class StatusPageView extends CController {
             
             $all_triggers = API::Trigger()->get($trigger_params);
 
+            // 3b. Fetch suppressed problem objectids (triggerids) via Problem API.
+            // A problem is suppressed when it was generated inside a Maintenance Window
+            // that covers that specific trigger — shown as the closed-eye icon in Zabbix.
+            // This is per-problem, NOT per-host, so it correctly handles MWs that target
+            // only specific triggers/services rather than an entire host.
+            $suppressed_problems = API::Problem()->get([
+                'output'       => ['objectid'],
+                'source'       => EVENT_SOURCE_TRIGGERS,
+                'object'       => EVENT_OBJECT_TRIGGER,
+                'suppressed'   => true,
+                'preservekeys' => false
+            ]);
+
+            // Build a fast lookup set: triggerid => true
+            $suppressed_triggerids = [];
+            foreach ($suppressed_problems as $problem) {
+                $suppressed_triggerids[$problem['objectid']] = true;
+            }
+
             // Collect all unique tags with frequency count for "popular tags"
             $all_tags = [];
             $tag_frequency = [];
@@ -355,9 +374,16 @@ class StatusPageView extends CController {
             arsort($tag_frequency);
             $popular_tags = array_slice(array_keys($tag_frequency), 0, 10); // Top 10 popular tags
 
-            // Map triggers to host groups (no filtering at trigger level)
+            // Map triggers to host groups.
+            // Skip any trigger whose active problem is suppressed by a Maintenance Window
+            // (the closed-eye icon in Zabbix Problems view).
             $group_triggers = [];
             foreach ($all_triggers as $trigger) {
+                // Exclude problems suppressed by a Maintenance Window
+                if (isset($suppressed_triggerids[$trigger['triggerid']])) {
+                    continue;
+                }
+
                 foreach ($trigger['hosts'] as $trigger_host) {
                     $hostid = $trigger_host['hostid'];
                     
