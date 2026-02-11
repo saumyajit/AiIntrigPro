@@ -1085,7 +1085,7 @@ $selected_tags_json = json_encode($filter_tags);
 
 		.regional-stat-name {
 			font-weight: 600;
-			font-size: 13px;
+			font-size: 18px;
 			color: #333;
 		}
 
