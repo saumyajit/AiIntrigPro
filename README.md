@@ -1,3 +1,4 @@
+# NEED TO ARCHIVE OR RENAME TO USE SEPARATELY
 # Zabbix Status Widgets v2.0 - Large Scale Edition
 
 ## 🎯 Overview
