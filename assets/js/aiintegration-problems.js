@@ -1,6 +1,6 @@
 /**
  * AI Integration - Problems Page
- * SIMPLIFIED VERSION
+ * FINAL FIXED VERSION
  */
 (function() {
     'use strict';
@@ -9,18 +9,16 @@
     let injected = false;
     
     function init() {
-        console.log('AI Integration Problems: Starting init');
+        console.log('AI Integration Problems: Init');
         
         window.AIIntegrationCore.loadSettings().then(s => {
             settings = s;
-            console.log('AI Integration Problems: Settings loaded', settings);
             
             if (!settings.quick_actions || !settings.quick_actions.problems) {
                 console.log('AI Integration Problems: Disabled');
                 return;
             }
             
-            // Inject after delay
             setTimeout(injectButtons, 2000);
         });
     }
@@ -34,7 +32,7 @@
             return;
         }
         
-        console.log('AI Integration Problems: Injecting buttons');
+        console.log('AI Integration Problems: Injecting');
         
         // Add header
         const thead = table.querySelector('thead tr');
@@ -42,7 +40,7 @@
             const th = document.createElement('th');
             th.className = 'ai-header';
             th.textContent = 'IA';
-            th.style.width = '50px';
+            th.style.cssText = 'width: 50px; text-align: center;';
             thead.appendChild(th);
         }
         
@@ -52,16 +50,28 @@
             if (row.querySelector('.ai-btn')) return;
             
             const td = document.createElement('td');
-            td.style.textAlign = 'center';
+            td.className = 'ai-td';
+            td.style.cssText = 'text-align: center; vertical-align: middle;';
             
             const btn = document.createElement('button');
+            btn.type = 'button'; // Important!
             btn.className = 'ai-btn';
             btn.innerHTML = '✨';
             btn.style.cssText = 'background: linear-gradient(135deg, #a855f7, #6366f1); color: white; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 16px;';
             btn.title = 'Analyze with AI';
-            btn.onclick = (e) => {
+            
+            // Prevent row click
+            btn.onclick = function(e) {
+                e.preventDefault();
                 e.stopPropagation();
+                e.stopImmediatePropagation();
                 handleClick(row);
+                return false;
+            };
+            
+            // Also prevent on td
+            td.onclick = function(e) {
+                e.stopPropagation();
             };
             
             td.appendChild(btn);
@@ -69,24 +79,53 @@
         });
         
         injected = true;
-        console.log('AI Integration Problems: Injected ' + rows.length + ' buttons');
+        console.log('AI Integration Problems: Done, injected ' + rows.length);
     }
     
     function handleClick(row) {
-        console.log('AI Integration Problems: Button clicked');
+        console.log('AI Integration Problems: Clicked');
         
-        const cells = row.querySelectorAll('td');
-        const problemLink = row.querySelector('a[href*="trigger"]');
-        const hostLink = row.querySelector('a[href*="host"]');
+        // Find specific elements by href patterns
+        const problemLink = row.querySelector('a[href*="triggerids"]') || 
+                           row.querySelector('td:nth-child(6) a') ||
+                           row.querySelector('a.link-action');
+        
+        const hostLink = row.querySelector('a[href*="hostid"]') ||
+                        row.querySelector('td:nth-child(5) a');
+        
+        // Get severity badge
+        const severityCell = row.querySelector('td[class*="severity"]') || 
+                            row.querySelector('td:nth-child(2)');
+        const severityText = severityCell ? severityCell.textContent.trim() : 'N/A';
+        
+        // Get time from first cell
+        const timeCell = row.querySelector('td:first-child');
+        const timeText = timeCell ? timeCell.textContent.trim() : 'N/A';
+        
+        // Get duration (usually one of the last cells before actions)
+        const cells = Array.from(row.querySelectorAll('td'));
+        const durationCell = cells[cells.length - 4] || cells[cells.length - 3];
+        const durationText = durationCell ? durationCell.textContent.trim() : 'N/A';
         
         const data = {
-            problem: problemLink ? problemLink.textContent.trim() : 'Unknown',
-            host: hostLink ? hostLink.textContent.trim() : 'Unknown',
-            severity: cells[1] ? cells[1].textContent.trim() : 'N/A',
-            time: cells[0] ? cells[0].textContent.trim() : 'N/A'
+            problem: problemLink ? problemLink.textContent.trim() : 'No problem name found',
+            host: hostLink ? hostLink.textContent.trim() : 'No host found',
+            severity: severityText,
+            time: timeText,
+            duration: durationText
         };
         
-        console.log('AI Integration Problems: Extracted data', data);
+        console.log('AI Integration Problems: Extracted:', data);
+        
+        // Validate we got actual data
+        if (data.problem.includes('PM') || data.problem.includes('AM') || data.problem.length < 5) {
+            data.problem = 'Problem name could not be extracted';
+        }
+        
+        if (data.host.includes('PM') || data.host.includes('AM') || data.host.length < 3) {
+            data.host = 'Host name could not be extracted';
+        }
+        
         showModal(data);
     }
     
@@ -95,17 +134,21 @@
         
         content.innerHTML = `
             <table style="width: 100%; margin-bottom: 20px; border-collapse: collapse;">
-                <tr><td style="padding: 8px; font-weight: bold; width: 120px;">Problem:</td><td style="padding: 8px;">${data.problem}</td></tr>
-                <tr><td style="padding: 8px; font-weight: bold;">Host:</td><td style="padding: 8px;">${data.host}</td></tr>
-                <tr><td style="padding: 8px; font-weight: bold;">Severity:</td><td style="padding: 8px;">${data.severity}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold; width: 120px;">Problem:</td><td style="padding: 8px;">${escapeHtml(data.problem)}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Host:</td><td style="padding: 8px;">${escapeHtml(data.host)}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Severity:</td><td style="padding: 8px;">${escapeHtml(data.severity)}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Duration:</td><td style="padding: 8px;">${escapeHtml(data.duration)}</td></tr>
             </table>
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: bold;">Ask AI:</label>
-                <textarea id="ai_question" rows="4" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">Analyze this problem and suggest possible causes:
+                <textarea id="ai_question" rows="5" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px;">Analyze this problem and suggest possible causes and remediation steps:
 
 Problem: ${data.problem}
 Host: ${data.host}
-Severity: ${data.severity}</textarea>
+Severity: ${data.severity}
+Duration: ${data.duration}
+
+What could be causing this issue and how can it be resolved?</textarea>
             </div>
             <div id="ai_response" style="display: none;"></div>
         `;
@@ -138,6 +181,11 @@ Severity: ${data.severity}</textarea>
                     const question = document.getElementById('ai_question').value;
                     const provider = providerSelect.value;
                     
+                    if (!question.trim()) {
+                        alert('Please enter a question');
+                        return;
+                    }
+                    
                     btn.disabled = true;
                     btn.textContent = 'Analyzing...';
                     
@@ -145,18 +193,18 @@ Severity: ${data.severity}</textarea>
                         .then(result => {
                             const resp = document.getElementById('ai_response');
                             resp.style.display = 'block';
-                            resp.style.cssText = 'padding: 15px; background: #f0f7ff; border-radius: 6px; margin-top: 15px; white-space: pre-wrap;';
+                            resp.style.cssText = 'padding: 15px; background: #f0f7ff; border-radius: 6px; margin-top: 15px; white-space: pre-wrap; font-family: system-ui; line-height: 1.6;';
                             resp.textContent = result.response;
                             btn.disabled = false;
-                            btn.textContent = 'Analyze';
+                            btn.textContent = 'Analyze Again';
                         })
                         .catch(err => {
                             const resp = document.getElementById('ai_response');
                             resp.style.display = 'block';
-                            resp.style.cssText = 'padding: 15px; background: #fee; border-radius: 6px; margin-top: 15px; color: red;';
+                            resp.style.cssText = 'padding: 15px; background: #fee; border: 1px solid #fcc; border-radius: 6px; margin-top: 15px; color: #c00; white-space: pre-wrap;';
                             resp.textContent = 'Error: ' + err.message;
                             btn.disabled = false;
-                            btn.textContent = 'Analyze';
+                            btn.textContent = 'Retry';
                         });
                 }
             },
@@ -166,6 +214,12 @@ Severity: ${data.severity}</textarea>
                 onClick: (close) => close()
             }
         ]);
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
     
     // Start
