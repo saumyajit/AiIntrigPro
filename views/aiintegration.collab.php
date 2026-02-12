@@ -544,33 +544,54 @@ if (!$data['config']) {
 }
 
 // Provider section with export
+// Load settings to get enabled providers
+$settings = \Modules\AIIntegration\ConfigStorage::load();
+$default_provider = $settings['default_provider'] ?? 'openai';
+
+$provider_names = [
+    'openai' => _('OpenAI (GPT)'),
+    'github' => _('GitHub Models'),
+    'anthropic' => _('Anthropic (Claude)'),
+    'gemini' => _('Google Gemini'),
+    'deepseek' => _('DeepSeek'),
+    'mistral' => _('Mistral AI'),
+    'groq' => _('Groq'),
+    'custom' => _('Custom')
+];
+
+// Get enabled providers
+$enabled_providers = [];
+foreach (['openai', 'github', 'anthropic', 'gemini', 'deepseek', 'mistral', 'groq', 'custom'] as $provider_key) {
+    if (!empty($settings[$provider_key]['enabled'])) {
+        $enabled_providers[$provider_key] = $provider_names[$provider_key];
+    }
+}
+
+// If no providers enabled, show all (fallback)
+if (empty($enabled_providers)) {
+    $enabled_providers = $provider_names;
+}
+
+// Provider section with export
 $provider_section = (new CDiv())
-	->addClass('provider-section')
-	->addItem(
-		(new CDiv())
-			->addClass('provider-selector-wrapper')
-			->addItem(new CTag('label', true, '🤖 ' . _('AI Provider:')))
-			->addItem(
-				(new CSelect('provider'))
-					->setId('provider_select')
-					->addOptions(CSelect::createOptionsFromArray([
-						'openai' => _('OpenAI (GPT)'),
-						'github' => _('GitHub Models'),
-						'anthropic' => _('Anthropic (Claude)'),
-						'google' => _('Google Gemini'),
-						'deepseek' => _('DeepSeek'),
-						'mistral' => _('Mistral AI'),
-						'groq' => _('Groq'),
-						'custom' => _('Custom')
-					]))
-					->setValue('openai')
-			)
-	)
-	->addItem(
-		(new CButton('export', '📥 ' . _('Export Chat')))
-			->addClass('export-btn')
-			->setAttribute('title', _('Export conversation as text'))
-	);
+    ->addClass('provider-section')
+    ->addItem(
+        (new CDiv())
+            ->addClass('provider-selector-wrapper')
+            ->addItem(new CTag('label', true, '🤖 ' . _('AI Provider:')))
+            ->addItem(
+                (new CSelect('provider'))
+                    ->setId('provider_select')
+                    ->addOptions(CSelect::createOptionsFromArray($enabled_providers))
+                    ->setValue($default_provider)
+            )
+    )
+    ->addItem(
+        (new CButton('export', '📥 ' . _('Export Chat')))
+            ->addClass('export-btn')
+            ->setAttribute('title', _('Export conversation as text'))
+    );
+
 
 // Chat container
 $chat_container = (new CDiv())
