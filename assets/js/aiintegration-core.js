@@ -1,234 +1,110 @@
 /**
  * AI Integration Core Library
- * Provides shared utilities for modal management, API calls, and settings
+ * SIMPLIFIED VERSION
  */
 window.AIIntegrationCore = (function() {
     'use strict';
     
-    const CONFIG = {
-        apiEndpoint: 'zabbix.php?action=aiintegration.query',
-        providersEndpoint: 'zabbix.php?action=aiintegration.providers',
-        modalOverlayClass: 'aiintegration-modal-overlay'
-    };
-    
     let settingsCache = null;
-    let settingsPromise = null;
     
     /**
-     * Get current Zabbix theme
+     * Load settings from server
      */
-    function getCurrentTheme() {
-        const body = document.body;
-        if (body && body.classList.contains('theme-dark')) {
-            return 'dark';
-        }
-        
-        const html = document.documentElement;
-        if (html && (html.getAttribute('data-theme') === 'dark-theme' || html.getAttribute('theme') === 'dark-theme')) {
-            return 'dark';
-        }
-        
-        return 'light';
-    }
-    
-    /**
-     * Escape HTML to prevent XSS
-     */
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text == null ? '' : String(text);
-        return div.innerHTML;
-    }
-    
-    /**
-     * Render text with newlines converted to <br>
-     */
-    function renderText(text) {
-        return escapeHtml(text).replace(/\n/g, '<br>');
-    }
-    
-    /**
-     * Try to parse JSON from various formats
-     */
-    function tryParseJSON(text) {
-        if (!text) return null;
-        
-        try {
-            return JSON.parse(text);
-        } catch (e) {
-            // Try removing markdown code blocks
-            const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-            try {
-                return JSON.parse(cleaned);
-            } catch (e) {
-                // Try extracting JSON object
-                const match = cleaned.match(/\{[\s\S]*\}/);
-                if (match) {
-                    try {
-                        return JSON.parse(match[0]);
-                    } catch (e) {
-                        return null;
-                    }
-                }
-                return null;
-            }
-        }
-    }
-    
-    /**
-     * Load settings from backend (cached)
-     */
-    function loadSettings(force) {
-        if (settingsCache && !force) {
+    function loadSettings() {
+        if (settingsCache) {
             return Promise.resolve(settingsCache);
         }
         
-        if (settingsPromise) {
-            return settingsPromise;
-        }
-        
-        settingsPromise = fetch(CONFIG.providersEndpoint, { 
-            credentials: 'same-origin' 
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (!data || !data.success) {
-                throw new Error(data && data.error ? data.error : 'Failed to load settings');
-            }
-            
-            settingsCache = {
-                providers: Array.isArray(data.providers) ? data.providers : [],
-                default_provider: data.default_provider || 'openai',
-                quick_actions: data.quick_actions || {
-                    problems: true,
-                    triggers: true,
-                    items: true,
-                    hosts: true
-                },
-                is_super_admin: data.is_super_admin || false
-            };
-            
-            return settingsCache;
-        })
-        .catch(err => {
-            console.error('AI Integration: Failed to load settings', err);
-            // Return defaults on error
-            settingsCache = {
-                providers: [],
-                default_provider: 'openai',
-                quick_actions: {
-                    problems: true,
-                    triggers: true,
-                    items: true,
-                    hosts: true
-                },
-                is_super_admin: false
-            };
-            return settingsCache;
-        })
-        .finally(() => {
-            settingsPromise = null;
-        });
-        
-        return settingsPromise;
+        return fetch('zabbix.php?action=aiintegration.providers')
+            .then(response => response.json())
+            .then(data => {
+                console.log('AI Integration: Settings loaded', data);
+                if (data.success) {
+                    settingsCache = data;
+                    return data;
+                }
+                throw new Error('Failed to load settings');
+            })
+            .catch(error => {
+                console.error('AI Integration: Failed to load settings', error);
+                // Return defaults
+                return {
+                    providers: [{id: 'github', name: 'GitHub Models'}],
+                    default_provider: 'github',
+                    quick_actions: {problems: true, items: true, triggers: true, hosts: true}
+                };
+            });
     }
     
     /**
-     * Call AI with question and context
+     * Call AI API
      */
     function callAI(question, context, provider) {
-        const payload = {
-            question: question,
-            context: context || {}
-        };
+        console.log('AI Integration: Calling AI', {question, context, provider});
         
-        if (provider) {
-            payload.provider = provider;
-        }
-        
-        return fetch(CONFIG.apiEndpoint, {
+        return fetch('zabbix.php?action=aiintegration.query', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload),
-            credentials: 'same-origin'
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                question: question,
+                context: context || {},
+                provider: provider || 'github'
+            })
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data && data.success) {
+        .then(response => {
+            console.log('AI Integration: Response status', response.status);
+            return response.text();
+        })
+        .then(text => {
+            console.log('AI Integration: Response text', text.substring(0, 200));
+            try {
+                const data = JSON.parse(text);
+                if (!data.success) {
+                    throw new Error(data.error || 'API call failed');
+                }
                 return data;
+            } catch (e) {
+                console.error('AI Integration: JSON parse error', e, text);
+                throw new Error('Invalid response from server: ' + text.substring(0, 100));
             }
-            throw new Error((data && data.error) || 'AI request failed');
         });
     }
     
     /**
-     * Open modal dialog
+     * Open modal
      */
     function openModal(title, content, actions, options) {
-        options = options || {};
-        
         const overlay = document.createElement('div');
-        overlay.className = CONFIG.modalOverlayClass;
-        
-        if (getCurrentTheme() === 'dark') {
-            overlay.setAttribute('theme', 'dark-theme');
-        }
+        overlay.className = 'aiintegration-modal-overlay';
+        overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
         
         const modal = document.createElement('div');
         modal.className = 'aiintegration-modal';
+        modal.style.cssText = 'background: white; border-radius: 8px; width: 90%; max-width: 700px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.3);';
         
         // Header
         const header = document.createElement('div');
-        header.className = 'aiintegration-modal-header';
+        header.style.cssText = 'padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0;';
+        header.innerHTML = `<h3 style="margin: 0;">${escapeHtml(title)}</h3>`;
         
-        const titleEl = document.createElement('div');
-        titleEl.className = 'aiintegration-modal-title';
-        titleEl.textContent = title;
-        header.appendChild(titleEl);
-        
-        // Header extras (like provider selector)
-        if (options.headerExtra) {
-            const extraWrapper = document.createElement('div');
-            extraWrapper.className = 'aiintegration-modal-header-extra';
-            if (options.headerExtra instanceof Node) {
-                extraWrapper.appendChild(options.headerExtra);
-            }
-            header.appendChild(extraWrapper);
+        if (options && options.headerExtra) {
+            header.appendChild(options.headerExtra);
         }
         
-        // Close button
         const closeBtn = document.createElement('button');
-        closeBtn.className = 'aiintegration-modal-close';
-        closeBtn.type = 'button';
-        closeBtn.setAttribute('aria-label', 'Close');
         closeBtn.innerHTML = '×';
+        closeBtn.style.cssText = 'background: none; border: none; color: white; font-size: 32px; cursor: pointer; padding: 0; width: 32px; height: 32px; line-height: 1;';
+        closeBtn.onclick = () => closeModal();
         header.appendChild(closeBtn);
         
         // Body
         const body = document.createElement('div');
-        body.className = 'aiintegration-modal-body';
-        if (typeof content === 'string') {
-            body.innerHTML = content;
-        } else if (content instanceof Node) {
-            body.appendChild(content);
-        }
+        body.style.cssText = 'padding: 20px; overflow-y: auto; flex: 1;';
+        body.appendChild(content);
         
         // Footer
         const footer = document.createElement('div');
-        footer.className = 'aiintegration-modal-footer';
-        
-        function close() {
-            overlay.remove();
-        }
-        
-        closeBtn.addEventListener('click', close);
-        overlay.addEventListener('click', (event) => {
-            if (event.target === overlay) {
-                close();
-            }
-        });
+        footer.style.cssText = 'padding: 20px; border-top: 1px solid #e5e7eb; display: flex; gap: 10px; justify-content: flex-end;';
         
         modal.appendChild(header);
         modal.appendChild(body);
@@ -236,64 +112,52 @@ window.AIIntegrationCore = (function() {
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
         
-        setActions(footer, actions || [], close);
+        function closeModal() {
+            overlay.remove();
+        }
         
-        return {
-            overlay,
-            body,
-            footer,
-            close,
-            setContent: (newContent) => {
-                body.innerHTML = '';
-                if (typeof newContent === 'string') {
-                    body.innerHTML = newContent;
-                } else if (newContent instanceof Node) {
-                    body.appendChild(newContent);
-                }
-            },
-            setActions: (newActions) => setActions(footer, newActions || [], close)
+        // Actions
+        const modalAPI = {
+            close: closeModal,
+            setActions: function(actionList) {
+                footer.innerHTML = '';
+                actionList.forEach(action => {
+                    const btn = document.createElement('button');
+                    btn.textContent = action.label;
+                    btn.className = action.className || 'aiintegration-btn';
+                    btn.style.cssText = 'padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;';
+                    if (action.className.includes('primary')) {
+                        btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                        btn.style.color = 'white';
+                    } else {
+                        btn.style.background = '#f3f4f6';
+                        btn.style.color = '#374151';
+                    }
+                    btn.onclick = () => action.onClick(closeModal, btn);
+                    footer.appendChild(btn);
+                });
+            }
         };
+        
+        overlay.onclick = (e) => {
+            if (e.target === overlay) closeModal();
+        };
+        
+        return modalAPI;
     }
     
-    /**
-     * Set modal footer actions
-     */
-    function setActions(footer, actions, close) {
-        footer.innerHTML = '';
-        
-        const credits = document.createElement('span');
-        credits.className = 'aiintegration-modal-credits';
-        credits.textContent = 'Developed by MonZphere';
-        footer.appendChild(credits);
-        
-        const actionsWrap = document.createElement('div');
-        actionsWrap.className = 'aiintegration-modal-footer-actions';
-        
-        actions.forEach((action) => {
-            const btn = document.createElement('button');
-            btn.type = action.type || 'button';
-            btn.textContent = action.label;
-            btn.className = action.className || 'aiintegration-btn aiintegration-btn-secondary';
-            btn.addEventListener('click', () => {
-                if (action.onClick) {
-                    action.onClick(close, btn);
-                }
-            });
-            actionsWrap.appendChild(btn);
-        });
-        
-        footer.appendChild(actionsWrap);
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
     
-    // Public API
     return {
-        CONFIG,
-        getCurrentTheme,
-        escapeHtml,
-        renderText,
-        tryParseJSON,
         loadSettings,
         callAI,
-        openModal
+        openModal,
+        escapeHtml
     };
 })();
+
+console.log('AI Integration Core: Loaded');
