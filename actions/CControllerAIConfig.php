@@ -6,10 +6,6 @@ use CController;
 use CControllerResponseData;
 use Modules\AIIntegration\ConfigStorage;
 
-/**
- * AI Integration Configuration Controller
- * Handles configuration page, save, test connection, and debug operations
- */
 class CControllerAIConfig extends CController {
     
     protected function init(): void {
@@ -17,32 +13,7 @@ class CControllerAIConfig extends CController {
     }
     
     protected function checkInput(): bool {
-        $fields = [
-            // Provider settings
-            'provider' => 'string',
-            'api_endpoint' => 'string',
-            'api_key' => 'string',
-            'default_model' => 'string',
-            'temperature' => 'string',
-            'max_tokens' => 'string',
-            'enabled' => 'in 1',
-            
-            // General settings
-            'default_provider' => 'string',
-            'qa_problems' => 'in 1',
-            'qa_triggers' => 'in 1',
-            'qa_items' => 'in 1',
-            'qa_hosts' => 'in 1',
-            
-            // Actions
-            'save' => 'in 1',
-            'save_general' => 'in 1',
-            'test' => 'in 1',
-            'debug' => 'in 1'
-        ];
-        
-        $ret = $this->validateInput($fields);
-        return $ret;
+        return true;
     }
     
     protected function checkPermissions(): bool {
@@ -50,283 +21,157 @@ class CControllerAIConfig extends CController {
     }
     
     protected function doAction(): void {
-        // Load config from file
-        $config = ConfigStorage::load();
-        
-        $data = [
-            'provider' => $this->getInput('provider', 'openai'),
-            'config' => $config,
-            'message' => null,
-            'message_type' => null
-        ];
-        
-        // Handle DEBUG (for troubleshooting)
-        if ($this->hasInput('debug')) {
-            $this->handleDebug();
-            exit;
-        }
-        
-        // Handle SAVE PROVIDER CONFIGURATION
-        if ($this->hasInput('save')) {
-            $this->handleSaveProvider($config);
-            exit;
-        }
-        
-        // Handle SAVE GENERAL SETTINGS
-        if ($this->hasInput('save_general')) {
-            $this->handleSaveGeneral($config);
-            exit;
-        }
-        
-        // Handle TEST CONNECTION
-        if ($this->hasInput('test')) {
-            $this->handleTest();
-            exit;
-        }
-        
-        // Render configuration page
-        $response = new CControllerResponseData($data);
-        $response->setTitle(_('AI Integration'));
-        $this->setResponse($response);
-    }
-    
-    /**
-     * Handle provider configuration save
-     */
-    private function handleSaveProvider(array $config): void {
-        $provider = $this->getInput('provider', 'openai');
-        
-        // Get current enabled state or set from input
-        $enabled = $this->hasInput('enabled');
-        
-        $config[$provider] = [
-            'api_endpoint' => $this->getInput('api_endpoint', ''),
-            'api_key' => $this->getInput('api_key', ''),
-            'default_model' => $this->getInput('default_model', ''),
-            'temperature' => $this->getInput('temperature', '0.7'),
-            'max_tokens' => $this->getInput('max_tokens', '1000'),
-            'enabled' => $enabled
-        ];
-        
-        // Save to file
-        $saved = ConfigStorage::save($config);
-        
-        // Debug logging
-        error_log("AI Integration Save - Provider: $provider, Enabled: " . ($enabled ? 'yes' : 'no') . ", Success: " . ($saved ? 'yes' : 'no'));
-        
-        // Return JSON response
-        header('Content-Type: application/json');
-        if ($saved) {
+        try {
+            // Handle SAVE
+            if ($this->hasInput('save') || isset($_POST['save'])) {
+                $this->handleSave();
+                return;
+            }
+            
+            // Handle TEST
+            if ($this->hasInput('test') || isset($_POST['test'])) {
+                $this->handleTest();
+                return;
+            }
+            
+            // Load config and render page
+            $config = ConfigStorage::load();
+            
+            $data = [
+                'config' => $config,
+                'message' => null,
+                'message_type' => null
+            ];
+            
+            $response = new CControllerResponseData($data);
+            $response->setTitle(_('AI Integration'));
+            $this->setResponse($response);
+            
+        } catch (\Exception $e) {
+            error_log('AI Integration Error: ' . $e->getMessage());
+            error_log('AI Integration Stack: ' . $e->getTraceAsString());
+            
+            header('Content-Type: application/json');
             echo json_encode([
-                'success' => true,
-                'message' => _('Provider configuration saved successfully!')
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage()
             ]);
-        } else {
-            $this->returnSaveError();
+            exit;
         }
     }
     
     /**
-     * Handle general settings save (default provider + quick actions)
+     * Handle save - saves ALL settings at once
      */
-    private function handleSaveGeneral(array $config): void {
-        // Update default provider
-        $config['default_provider'] = $this->getInput('default_provider', 'openai');
-        
-        // Update quick actions toggles
-        $config['quick_actions'] = [
-            'problems' => $this->hasInput('qa_problems'),
-            'triggers' => $this->hasInput('qa_triggers'),
-            'items' => $this->hasInput('qa_items'),
-            'hosts' => $this->hasInput('qa_hosts')
-        ];
-        
-        // Save to file
-        $saved = ConfigStorage::save($config);
-        
-        error_log("AI Integration Save - General Settings, Success: " . ($saved ? 'yes' : 'no'));
-        
-        // Return JSON response
-        header('Content-Type: application/json');
-        if ($saved) {
+    private function handleSave(): void {
+        try {
+            // Ensure no output before JSON
+            ob_clean();
+            
+            $existing = ConfigStorage::load();
+            
+            // Build complete config
+            $config = [
+                'openai' => $this->buildProviderConfig('openai', $existing),
+                'github' => $this->buildProviderConfig('github', $existing),
+                'anthropic' => $this->buildProviderConfig('anthropic', $existing),
+                'gemini' => $this->buildProviderConfig('gemini', $existing),
+                'deepseek' => $this->buildProviderConfig('deepseek', $existing),
+                'mistral' => $this->buildProviderConfig('mistral', $existing),
+                'groq' => $this->buildProviderConfig('groq', $existing),
+                'custom' => $this->buildProviderConfig('custom', $existing),
+                'default_provider' => $_POST['default_provider'] ?? 'openai',
+                'quick_actions' => [
+                    'problems' => !empty($_POST['qa_problems']),
+                    'triggers' => !empty($_POST['qa_triggers']),
+                    'items' => !empty($_POST['qa_items']),
+                    'hosts' => !empty($_POST['qa_hosts'])
+                ]
+            ];
+            
+            // Save
+            $ok = ConfigStorage::save($config);
+            
+            // Send JSON response
+            header('Content-Type: application/json');
+            http_response_code(200);
             echo json_encode([
-                'success' => true,
-                'message' => _('General settings saved successfully!')
+                'success' => $ok,
+                'message' => $ok ? _('Configuration saved successfully!') : _('Failed to save configuration')
             ]);
-        } else {
-            $this->returnSaveError();
+            exit;
+            
+        } catch (\Exception $e) {
+            error_log('AI Integration Save Error: ' . $e->getMessage());
+            
+            header('Content-Type: application/json');
+            http_response_code(200);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Save error: ' . $e->getMessage()
+            ]);
+            exit;
         }
     }
     
     /**
-     * Return detailed save error
+     * Build provider config from POST data
      */
-    private function returnSaveError(): void {
-        $data_dir = dirname(__DIR__) . '/data';
-        $config_file = $data_dir . '/config.json';
+    private function buildProviderConfig(string $provider, array $existing): array {
+        $api_key = trim($_POST[$provider . '_api_key'] ?? '');
         
-        $error_details = [];
-        $error_details[] = 'Data dir exists: ' . (is_dir($data_dir) ? 'yes' : 'no');
-        $error_details[] = 'Data dir writable: ' . (is_writable($data_dir) ? 'yes' : 'no');
-        $error_details[] = 'Config exists: ' . (file_exists($config_file) ? 'yes' : 'no');
-        
-        if (file_exists($config_file)) {
-            $error_details[] = 'Config writable: ' . (is_writable($config_file) ? 'yes' : 'no');
+        // If API key is empty or masked, keep existing
+        if ($api_key === '' || $api_key === '********' || strpos($api_key, '*') !== false) {
+            $api_key = $existing[$provider]['api_key'] ?? '';
         }
         
-        error_log("AI Integration Save Failed - " . implode(', ', $error_details));
-        
-        echo json_encode([
-            'success' => false,
-            'message' => _('Failed to save configuration. Check permissions on data directory and PHP error log.')
-        ]);
+        return [
+            'enabled' => !empty($_POST[$provider . '_enabled']),
+            'api_endpoint' => trim($_POST[$provider . '_api_endpoint'] ?? ''),
+            'api_key' => $api_key,
+            'default_model' => trim($_POST[$provider . '_default_model'] ?? ''),
+            'temperature' => trim($_POST[$provider . '_temperature'] ?? '0.7'),
+            'max_tokens' => trim($_POST[$provider . '_max_tokens'] ?? '1000')
+        ];
     }
     
     /**
      * Handle test connection
      */
     private function handleTest(): void {
-        $provider = $this->getInput('provider', 'openai');
-        $endpoint = $this->getInput('api_endpoint', '');
-        $api_key = $this->getInput('api_key', '');
-        
-        $test_result = $this->testAIConnection($provider, $endpoint, $api_key);
-        
-        // Return JSON response
-        header('Content-Type: application/json');
-        echo json_encode($test_result);
-    }
-    
-    /**
-     * Handle debug info request
-     */
-    private function handleDebug(): void {
-        $module_dir = dirname(__DIR__);
-        $data_dir = $module_dir . '/data';
-        $config_file = $data_dir . '/config.json';
-        
-        $debug_info = [
-            'module_dir' => $module_dir,
-            'data_dir' => $data_dir,
-            'config_file' => $config_file,
-            'data_dir_exists' => is_dir($data_dir),
-            'data_dir_writable' => is_writable($data_dir),
-            'config_exists' => file_exists($config_file),
-            'config_writable' => file_exists($config_file) ? is_writable($config_file) : 'N/A',
-            'php_user' => get_current_user(),
-            'data_dir_perms' => is_dir($data_dir) ? substr(sprintf('%o', fileperms($data_dir)), -4) : 'N/A',
-        ];
-        
-        if (file_exists($config_file)) {
-            $debug_info['config_perms'] = substr(sprintf('%o', fileperms($config_file)), -4);
-        }
-        
-        header('Content-Type: application/json');
-        echo json_encode($debug_info, JSON_PRETTY_PRINT);
-    }
-    
-    /**
-     * Test AI provider connection
-     */
-    private function testAIConnection(string $provider, string $endpoint, string $api_key): array {
-        if (empty($api_key)) {
-            return [
-                'success' => false,
-                'message' => _('API Key is required for testing')
-            ];
-        }
-        
         try {
+            ob_clean();
+            
+            $provider = $_POST['provider'] ?? 'openai';
+            $endpoint = $_POST['api_endpoint'] ?? '';
+            $api_key = $_POST['api_key'] ?? '';
+            
+            if (empty($api_key)) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false,
+                    'message' => _('API Key is required for testing')
+                ]);
+                exit;
+            }
+            
             $ch = curl_init();
             $headers = ['Content-Type: application/json'];
             
-            switch ($provider) {
-                case 'anthropic':
-                    $headers[] = 'x-api-key: ' . $api_key;
-                    $headers[] = 'anthropic-version: 2023-06-01';
-                    $test_data = json_encode([
-                        'model' => 'claude-3-haiku-20240307',
-                        'max_tokens' => 10,
-                        'messages' => [
-                            ['role' => 'user', 'content' => 'test']
-                        ]
-                    ]);
-                    break;
-                    
-                case 'gemini':
-                    $endpoint = $endpoint . '/gemini-pro:generateContent?key=' . $api_key;
-                    $test_data = json_encode([
-                        'contents' => [
-                            ['parts' => [['text' => 'test']]]
-                        ]
-                    ]);
-                    break;
-                    
-                case 'github':
-                    $headers[] = 'Authorization: Bearer ' . $api_key;
-                    $test_data = json_encode([
-                        'model' => 'gpt-4o-mini',
-                        'messages' => [
-                            ['role' => 'user', 'content' => 'test']
-                        ],
-                        'max_tokens' => 10
-                    ]);
-                    break;
-                    
-                case 'deepseek':
-                    $headers[] = 'Authorization: Bearer ' . $api_key;
-                    $test_data = json_encode([
-                        'model' => 'deepseek-chat',
-                        'messages' => [
-                            ['role' => 'user', 'content' => 'test']
-                        ],
-                        'max_tokens' => 10
-                    ]);
-                    break;
-                    
-                case 'mistral':
-                    $headers[] = 'Authorization: Bearer ' . $api_key;
-                    $test_data = json_encode([
-                        'model' => 'mistral-large-latest',
-                        'messages' => [
-                            ['role' => 'user', 'content' => 'test']
-                        ],
-                        'max_tokens' => 10
-                    ]);
-                    break;
-                    
-                case 'groq':
-                    $headers[] = 'Authorization: Bearer ' . $api_key;
-                    $test_data = json_encode([
-                        'model' => 'llama3-70b-8192',
-                        'messages' => [
-                            ['role' => 'user', 'content' => 'test']
-                        ],
-                        'max_tokens' => 10
-                    ]);
-                    break;
-                    
-                case 'custom':
-                    $headers[] = 'Authorization: Bearer ' . $api_key;
-                    $test_data = json_encode([
-                        'model' => 'test',
-                        'messages' => [
-                            ['role' => 'user', 'content' => 'test']
-                        ],
-                        'max_tokens' => 10
-                    ]);
-                    break;
-                    
-                default: // openai
-                    $headers[] = 'Authorization: Bearer ' . $api_key;
-                    $test_data = json_encode([
-                        'model' => 'gpt-3.5-turbo',
-                        'messages' => [
-                            ['role' => 'user', 'content' => 'test']
-                        ],
-                        'max_tokens' => 10
-                    ]);
+            if ($provider === 'anthropic') {
+                $headers[] = 'x-api-key: ' . $api_key;
+                $headers[] = 'anthropic-version: 2023-06-01';
+            } elseif ($provider === 'gemini') {
+                $endpoint = $endpoint . '/gemini-pro:generateContent?key=' . $api_key;
+            } else {
+                $headers[] = 'Authorization: Bearer ' . $api_key;
             }
+            
+            $test_data = json_encode([
+                'model' => 'test',
+                'messages' => [['role' => 'user', 'content' => 'test']],
+                'max_tokens' => 10
+            ]);
             
             curl_setopt($ch, CURLOPT_URL, $endpoint);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -339,23 +184,27 @@ class CControllerAIConfig extends CController {
             $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
             
+            header('Content-Type: application/json');
             if ($http_code >= 200 && $http_code < 300) {
-                return [
+                echo json_encode([
                     'success' => true,
                     'message' => _('Connection successful! (HTTP ' . $http_code . ')')
-                ];
+                ]);
             } else {
-                return [
+                echo json_encode([
                     'success' => false,
-                    'message' => _('Connection failed with HTTP ' . $http_code . ' - ' . substr($response, 0, 200))
-                ];
+                    'message' => _('Connection failed: HTTP ' . $http_code)
+                ]);
             }
+            exit;
             
         } catch (\Exception $e) {
-            return [
+            header('Content-Type: application/json');
+            echo json_encode([
                 'success' => false,
-                'message' => _('Connection failed: ') . $e->getMessage()
-            ];
+                'message' => _('Test error: ') . $e->getMessage()
+            ]);
+            exit;
         }
     }
 }
