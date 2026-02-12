@@ -1,220 +1,133 @@
 /**
- * AI Integration - Problems Page Enhancement
- * FIXED: Proper table detection, persistent buttons, correct provider loading
+ * AI Integration - Problems Page
+ * SIMPLIFIED VERSION
  */
 (function() {
     'use strict';
     
     let settings = null;
-    let injectionAttempts = 0;
-    const MAX_ATTEMPTS = 20;
+    let injected = false;
     
-    function waitForDependencies(callback) {
-        if (typeof window.AIIntegrationCore !== 'undefined') {
-            callback();
-        } else {
-            setTimeout(() => waitForDependencies(callback), 100);
-        }
+    function init() {
+        console.log('AI Integration Problems: Starting init');
+        
+        window.AIIntegrationCore.loadSettings().then(s => {
+            settings = s;
+            console.log('AI Integration Problems: Settings loaded', settings);
+            
+            if (!settings.quick_actions || !settings.quick_actions.problems) {
+                console.log('AI Integration Problems: Disabled');
+                return;
+            }
+            
+            // Inject after delay
+            setTimeout(injectButtons, 2000);
+        });
     }
     
-	function init() {
-		const Core = window.AIIntegrationCore;
-		
-		Core.loadSettings().then(loadedSettings => {
-			settings = loadedSettings;
-			
-			if (!settings.quick_actions.problems) { // or .items for latestdata
-				console.log('AI Integration: Quick actions disabled');
-				return;
-			}
-			
-			if (!settings.providers || settings.providers.length === 0) {
-				console.log('AI Integration: No providers enabled');
-				return;
-			}
-			
-			console.log('AI Integration: Initialized with settings:', settings);
-			
-			// Initial injection
-			setTimeout(injectProblemsButtons, 1000); // or injectLatestDataButtons
-			
-			// Re-inject ONLY on filter apply or pagination
-			// Listen for Zabbix's custom events instead of MutationObserver
-			document.addEventListener('zbx_table_updated', () => {
-				console.log('AI Integration: Table updated, re-injecting');
-				setTimeout(injectProblemsButtons, 500);
-			});
-			
-			// Fallback: Single re-injection after 3 seconds (for initial page load)
-			setTimeout(() => {
-				if (injectionAttempts === 0) {
-					injectProblemsButtons();
-				}
-			}, 3000);
-		});
-	}
-    
-    function injectProblemsButtons() {
-        // Look for the actual problems table (not filter)
-        const table = document.querySelector('table.list-table[data-table-name="problems"]') ||
-                     document.querySelector('form[name="problem"] table.list-table') ||
-                     document.querySelector('.list-table tbody tr[data-problemid]')?.closest('table');
+    function injectButtons() {
+        if (injected) return;
         
+        const table = document.querySelector('table.list-table');
         if (!table) {
-            console.log('AI Integration: Problems table not found');
+            console.log('AI Integration Problems: Table not found');
             return;
         }
         
-        const tbody = table.querySelector('tbody');
-        if (!tbody) return;
+        console.log('AI Integration Problems: Injecting buttons');
         
-        // Add header if not exists
+        // Add header
         const thead = table.querySelector('thead tr');
-        if (thead && !thead.querySelector('.aiintegration-header')) {
+        if (thead && !thead.querySelector('.ai-header')) {
             const th = document.createElement('th');
-            th.className = 'aiintegration-header';
+            th.className = 'ai-header';
             th.textContent = 'IA';
             th.style.width = '50px';
-            th.style.textAlign = 'center';
             thead.appendChild(th);
         }
         
-        // Add buttons to each row
-        const rows = tbody.querySelectorAll('tr');
-        let injected = 0;
-        
+        // Add buttons
+        const rows = table.querySelectorAll('tbody tr');
         rows.forEach(row => {
-            // Skip if already has button
-            if (row.querySelector('.aiintegration-sparkle-btn')) return;
+            if (row.querySelector('.ai-btn')) return;
             
             const td = document.createElement('td');
-            td.className = 'aiintegration-td';
             td.style.textAlign = 'center';
-            td.style.verticalAlign = 'middle';
             
-            const btn = createSparkleButton();
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
+            const btn = document.createElement('button');
+            btn.className = 'ai-btn';
+            btn.innerHTML = '✨';
+            btn.style.cssText = 'background: linear-gradient(135deg, #a855f7, #6366f1); color: white; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 16px;';
+            btn.title = 'Analyze with AI';
+            btn.onclick = (e) => {
                 e.stopPropagation();
-                handleProblemAnalysis(row);
-            });
+                handleClick(row);
+            };
             
             td.appendChild(btn);
             row.appendChild(td);
-            injected++;
         });
         
-        if (injected > 0) {
-            injectionAttempts++;
-            console.log(`AI Integration: Injected ${injected} buttons (attempt ${injectionAttempts})`);
-        }
+        injected = true;
+        console.log('AI Integration Problems: Injected ' + rows.length + ' buttons');
     }
     
-    function createSparkleButton() {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'aiintegration-sparkle-btn btn-icon';
-        btn.title = 'Analyze with AI';
-        btn.style.cssText = 'background: none; border: none; cursor: pointer; padding: 4px;';
-        btn.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" 
-                      fill="url(#sparkle-gradient-${Date.now()})" stroke="#a855f7" stroke-width="1.5"/>
-                <defs>
-                    <linearGradient id="sparkle-gradient-${Date.now()}" x1="2" y1="2" x2="22" y2="22">
-                        <stop offset="0%" style="stop-color:#a855f7;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#6366f1;stop-opacity:1" />
-                    </linearGradient>
-                </defs>
-            </svg>
-        `;
-        return btn;
-    }
-    
-    function handleProblemAnalysis(row) {
-        if (!settings) {
-            alert('Settings not loaded. Please refresh the page.');
-            return;
-        }
+    function handleClick(row) {
+        console.log('AI Integration Problems: Button clicked');
         
-        const problemData = extractProblemData(row);
-        console.log('AI Integration: Problem data extracted', problemData);
-        showAnalysisModal(problemData);
-    }
-    
-    function extractProblemData(row) {
         const cells = row.querySelectorAll('td');
+        const problemLink = row.querySelector('a[href*="trigger"]');
+        const hostLink = row.querySelector('a[href*="host"]');
         
-        // Try to get data from cells (adjust indices based on your table structure)
-        let time = '', severity = '', problem = '', host = '', duration = '';
-        
-        // Try different cell indices
-        try {
-            time = cells[1]?.textContent?.trim() || '';
-            severity = cells[2]?.querySelector('.problem-severity')?.textContent?.trim() || 
-                      cells[2]?.textContent?.trim() || '';
-            
-            // Problem name is usually a link
-            const problemLink = row.querySelector('a[href*="triggerids"]');
-            problem = problemLink?.textContent?.trim() || cells[4]?.textContent?.trim() || '';
-            
-            // Host name
-            const hostLink = row.querySelector('a[href*="hostid"]');
-            host = hostLink?.textContent?.trim() || cells[6]?.textContent?.trim() || '';
-            
-            duration = cells[7]?.textContent?.trim() || cells[8]?.textContent?.trim() || '';
-        } catch (e) {
-            console.error('AI Integration: Error extracting problem data', e);
-        }
-        
-        return {
-            time: time,
-            severity: severity,
-            problem: problem,
-            host: host,
-            duration: duration
+        const data = {
+            problem: problemLink ? problemLink.textContent.trim() : 'Unknown',
+            host: hostLink ? hostLink.textContent.trim() : 'Unknown',
+            severity: cells[1] ? cells[1].textContent.trim() : 'N/A',
+            time: cells[0] ? cells[0].textContent.trim() : 'N/A'
         };
+        
+        console.log('AI Integration Problems: Extracted data', data);
+        showModal(data);
     }
     
-    function showAnalysisModal(problemData) {
-        const Core = window.AIIntegrationCore;
-        
+    function showModal(data) {
         const content = document.createElement('div');
         
-        // Summary
-        const summaryTable = document.createElement('table');
-        summaryTable.className = 'aiintegration-summary-table';
-        summaryTable.innerHTML = `
-            <tr><td>Problem:</td><td>${Core.escapeHtml(problemData.problem || 'N/A')}</td></tr>
-            <tr><td>Host:</td><td>${Core.escapeHtml(problemData.host || 'N/A')}</td></tr>
-            <tr><td>Severity:</td><td>${Core.escapeHtml(problemData.severity || 'N/A')}</td></tr>
-            <tr><td>Duration:</td><td>${Core.escapeHtml(problemData.duration || 'N/A')}</td></tr>
+        content.innerHTML = `
+            <table style="width: 100%; margin-bottom: 20px; border-collapse: collapse;">
+                <tr><td style="padding: 8px; font-weight: bold; width: 120px;">Problem:</td><td style="padding: 8px;">${data.problem}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Host:</td><td style="padding: 8px;">${data.host}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Severity:</td><td style="padding: 8px;">${data.severity}</td></tr>
+            </table>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Ask AI:</label>
+                <textarea id="ai_question" rows="4" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">Analyze this problem and suggest possible causes:
+
+Problem: ${data.problem}
+Host: ${data.host}
+Severity: ${data.severity}</textarea>
+            </div>
+            <div id="ai_response" style="display: none;"></div>
         `;
-        content.appendChild(summaryTable);
         
-        // Question field
-        const questionField = document.createElement('div');
-        questionField.className = 'aiintegration-field';
-        questionField.innerHTML = `
-            <label>Ask AI:</label>
-            <textarea id="ai_question" rows="4" placeholder="What could be causing this issue?">${getDefaultQuestion(problemData)}</textarea>
-        `;
-        content.appendChild(questionField);
+        const providerSelect = document.createElement('select');
+        providerSelect.style.cssText = 'background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 5px 10px; border-radius: 4px;';
         
-        // Response area
-        const responseDiv = document.createElement('div');
-        responseDiv.id = 'ai_response_area';
-        responseDiv.style.display = 'none';
-        content.appendChild(responseDiv);
+        if (settings && settings.providers) {
+            settings.providers.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name;
+                providerSelect.appendChild(opt);
+            });
+            providerSelect.value = settings.default_provider || 'github';
+        }
         
-        // Provider selector
-        const providerSelect = createProviderSelect();
-        
-        const modal = Core.openModal(
+        const modal = window.AIIntegrationCore.openModal(
             '✨ AI Problem Analysis',
             content,
             [],
-            { headerExtra: providerSelect }
+            {headerExtra: providerSelect}
         );
         
         modal.setActions([
@@ -225,22 +138,23 @@
                     const question = document.getElementById('ai_question').value;
                     const provider = providerSelect.value;
                     
-                    if (!question) {
-                        showError('Please enter a question');
-                        return;
-                    }
-                    
                     btn.disabled = true;
-                    btn.innerHTML = '<span class="aiintegration-loading"></span> Analyzing...';
+                    btn.textContent = 'Analyzing...';
                     
-                    Core.callAI(question, { problem: problemData }, provider)
-                        .then(data => {
-                            showResponse(data.response);
+                    window.AIIntegrationCore.callAI(question, data, provider)
+                        .then(result => {
+                            const resp = document.getElementById('ai_response');
+                            resp.style.display = 'block';
+                            resp.style.cssText = 'padding: 15px; background: #f0f7ff; border-radius: 6px; margin-top: 15px; white-space: pre-wrap;';
+                            resp.textContent = result.response;
                             btn.disabled = false;
                             btn.textContent = 'Analyze';
                         })
                         .catch(err => {
-                            showError(err.message || 'Analysis failed');
+                            const resp = document.getElementById('ai_response');
+                            resp.style.display = 'block';
+                            resp.style.cssText = 'padding: 15px; background: #fee; border-radius: 6px; margin-top: 15px; color: red;';
+                            resp.textContent = 'Error: ' + err.message;
                             btn.disabled = false;
                             btn.textContent = 'Analyze';
                         });
@@ -252,57 +166,12 @@
                 onClick: (close) => close()
             }
         ]);
-        
-        function showResponse(text) {
-            const responseArea = document.getElementById('ai_response_area');
-            responseArea.style.display = 'block';
-            responseArea.innerHTML = `<div class="aiintegration-response">${Core.escapeHtml(text)}</div>`;
-        }
-        
-        function showError(message) {
-            const responseArea = document.getElementById('ai_response_area');
-            responseArea.style.display = 'block';
-            responseArea.innerHTML = `<div class="aiintegration-error">${Core.escapeHtml(message)}</div>`;
-        }
     }
     
-    function createProviderSelect() {
-        const select = document.createElement('select');
-        select.id = 'provider_select';
-        
-        if (!settings || !settings.providers || settings.providers.length === 0) {
-            const option = document.createElement('option');
-            option.value = 'openai';
-            option.textContent = 'No providers configured';
-            select.appendChild(option);
-            select.disabled = true;
-            return select;
-        }
-        
-        settings.providers.forEach(provider => {
-            const option = document.createElement('option');
-            option.value = provider.id;
-            option.textContent = provider.name;
-            if (provider.id === settings.default_provider) {
-                option.selected = true;
-            }
-            select.appendChild(option);
-        });
-        
-        return select;
-    }
-    
-    function getDefaultQuestion(problemData) {
-        if (!problemData.problem) {
-            return 'Analyze this problem and suggest possible causes and remediation steps.';
-        }
-        return `Analyze this problem and suggest possible causes and remediation steps:\n\nProblem: ${problemData.problem}\nHost: ${problemData.host}\nSeverity: ${problemData.severity}`;
-    }
-    
-    // Initialize
+    // Start
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => waitForDependencies(init));
+        document.addEventListener('DOMContentLoaded', init);
     } else {
-        waitForDependencies(init);
+        init();
     }
 })();
