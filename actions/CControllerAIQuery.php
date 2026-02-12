@@ -5,10 +5,6 @@ namespace Modules\AIIntegration\Actions;
 use CController;
 use Modules\AIIntegration\ConfigStorage;
 
-/**
- * AI Query Handler
- * Processes AI requests with provider support
- */
 class CControllerAIQuery extends CController {
     
     protected function init(): void {
@@ -20,26 +16,26 @@ class CControllerAIQuery extends CController {
     }
     
     protected function checkPermissions(): bool {
-        return $this->checkAccess(CRoleHelper::UI_MONITORING_PROBLEMS) 
-            || $this->checkAccess(CRoleHelper::UI_MONITORING_LATEST_DATA)
-            || $this->getUserType() >= USER_TYPE_SUPER_ADMIN;
+        return true; // Allow all authenticated users
     }
     
     protected function doAction(): void {
+        // Ensure clean JSON output
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        ob_start();
+        
         try {
-            ob_clean();
-            
-            // Get JSON input
+            // Get input
             $input = file_get_contents('php://input');
             $data = json_decode($input, true);
             
-            if (!$data) {
-                throw new \Exception('Invalid request data');
-            }
+            error_log('AI Integration Query - Input: ' . print_r($data, true));
             
             $question = $data['question'] ?? '';
+            $provider = $data['provider'] ?? '';
             $context = $data['context'] ?? [];
-            $provider = $data['provider'] ?? null;
             
             if (empty($question)) {
                 throw new \Exception('Question is required');
@@ -48,155 +44,102 @@ class CControllerAIQuery extends CController {
             // Load config
             $config = ConfigStorage::load();
             
-            // Determine which provider to use
-            if (!$provider || $provider === 'undefined' || $provider === 'null') {
-                $provider = $config['default_provider'] ?? 'openai';
+            // Fix provider
+            if (empty($provider) || $provider === 'undefined') {
+                $provider = $config['default_provider'] ?? 'github';
             }
             
-            // Validate provider
+            error_log("AI Integration Query - Using provider: $provider");
+            
             if (!isset($config[$provider])) {
-                throw new \Exception("Provider '{$provider}' is not configured");
+                throw new \Exception("Provider '$provider' not found in config");
             }
             
             $providerConfig = $config[$provider];
             
             if (empty($providerConfig['enabled'])) {
-                throw new \Exception("Provider '{$provider}' is not enabled");
+                throw new \Exception("Provider '$provider' is not enabled. Please enable it in settings.");
             }
             
-            if (empty($providerConfig['api_key'])) {
-                throw new \Exception("Provider '{$provider}' has no API key configured");
-            }
+            // Make API call
+            $response = $this->callAPI($question, $context, $provider, $providerConfig);
             
-            // Make AI request
-            $response = $this->callAI(
-                $question,
-                $context,
-                $provider,
-                $providerConfig
-            );
-            
-            header('Content-Type: application/json');
-            http_response_code(200);
-            echo json_encode([
+            $result = [
                 'success' => true,
                 'response' => $response,
                 'provider' => $provider
-            ]);
-            exit;
+            ];
             
         } catch (\Exception $e) {
             error_log('AI Integration Query Error: ' . $e->getMessage());
-            
-            header('Content-Type: application/json');
-            http_response_code(200);
-            echo json_encode([
+            $result = [
                 'success' => false,
                 'error' => $e->getMessage()
-            ]);
-            exit;
+            ];
         }
+        
+        // Clean output and send JSON
+        ob_clean();
+        header('Content-Type: application/json');
+        echo json_encode($result);
+        exit;
     }
     
-    /**
-     * Call AI provider API
-     */
-    private function callAI(string $question, array $context, string $provider, array $config): string {
+    private function callAPI($question, $context, $provider, $config) {
         $endpoint = $config['api_endpoint'];
-        $api_key = $config['api_key'];
-        $model = $config['default_model'];
-        $temperature = (float)($config['temperature'] ?? 0.7);
-        $max_tokens = (int)($config['max_tokens'] ?? 1000);
+        $apiKey = $config['api_key'];
+        $model = $config['default_model'] ?? 'gpt-4o-mini';
         
-        // Build prompt with context
+        // Build prompt
         $prompt = $question;
-        if (!empty($context)) {
-            $prompt .= "\n\nContext:\n" . json_encode($context, JSON_PRETTY_PRINT);
+        if ($context) {
+            $prompt .= "\n\nContext: " . json_encode($context);
         }
+        
+        // Build request
+        $headers = [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $apiKey
+        ];
+        
+        $requestData = [
+            'model' => $model,
+            'messages' => [
+                ['role' => 'user', 'content' => $prompt]
+            ],
+            'max_tokens' => (int)($config['max_tokens'] ?? 1000),
+            'temperature' => (float)($config['temperature'] ?? 0.7)
+        ];
+        
+        error_log('AI Integration - Calling API: ' . $endpoint);
         
         $ch = curl_init();
-        $headers = ['Content-Type: application/json'];
-        $request_data = [];
-        
-        switch ($provider) {
-            case 'anthropic':
-                $headers[] = 'x-api-key: ' . $api_key;
-                $headers[] = 'anthropic-version: 2023-06-01';
-                $request_data = [
-                    'model' => $model,
-                    'max_tokens' => $max_tokens,
-                    'messages' => [
-                        ['role' => 'user', 'content' => $prompt]
-                    ]
-                ];
-                break;
-                
-            case 'gemini':
-                $endpoint = $endpoint . '/' . $model . ':generateContent?key=' . $api_key;
-                $request_data = [
-                    'contents' => [
-                        ['parts' => [['text' => $prompt]]]
-                    ]
-                ];
-                break;
-                
-            default:
-                // OpenAI-compatible (openai, github, deepseek, mistral, groq, custom)
-                $headers[] = 'Authorization: Bearer ' . $api_key;
-                $request_data = [
-                    'model' => $model,
-                    'messages' => [
-                        ['role' => 'user', 'content' => $prompt]
-                    ],
-                    'temperature' => $temperature,
-                    'max_tokens' => $max_tokens
-                ];
-        }
-        
         curl_setopt($ch, CURLOPT_URL, $endpoint);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($request_data));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestData));
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
         
         $response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
         
-        if ($error) {
-            throw new \Exception('API request failed: ' . $error);
+        if ($curlError) {
+            throw new \Exception('API Error: ' . $curlError);
         }
         
-        if ($http_code < 200 || $http_code >= 300) {
-            throw new \Exception('API returned error: HTTP ' . $http_code . ' - ' . substr($response, 0, 200));
+        if ($httpCode !== 200) {
+            throw new \Exception('API returned HTTP ' . $httpCode . ': ' . substr($response, 0, 200));
         }
         
-        // Parse response
-        $response_data = json_decode($response, true);
-        if (!$response_data) {
-            throw new \Exception('Failed to parse API response');
+        $responseData = json_decode($response, true);
+        if (!$responseData) {
+            throw new \Exception('Invalid API response');
         }
         
-        // Extract text based on provider
-        return $this->extractResponse($response_data, $provider);
-    }
-    
-    /**
-     * Extract text from API response
-     */
-    private function extractResponse(array $data, string $provider): string {
-        switch ($provider) {
-            case 'anthropic':
-                return $data['content'][0]['text'] ?? 'No response';
-                
-            case 'gemini':
-                return $data['candidates'][0]['content']['parts'][0]['text'] ?? 'No response';
-                
-            default:
-                // OpenAI-compatible
-                return $data['choices'][0]['message']['content'] ?? 'No response';
-        }
+        // Extract message
+        return $responseData['choices'][0]['message']['content'] ?? 'No response';
     }
 }
