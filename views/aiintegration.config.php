@@ -1,23 +1,5 @@
 <?php
 
-use CTag;
-use CDiv;
-use CForm;
-use CFormGrid;
-use CFormField;
-use CLabel;
-use CTextBox;
-use CTextArea;
-use CSubmit;
-use CButton;
-use CTabView;
-use CHtmlPage;
-use CInput;
-use CCheckBox;
-use CSelect;
-
-$title = _('AI Integration Configuration');
-
 // Custom CSS with additional styles for General Settings
 $custom_css = '
 <style>
@@ -136,6 +118,12 @@ $custom_css = '
     padding-bottom: 10px;
 }
 
+.general-settings-description {
+    color: #6b7280;
+    font-size: 14px;
+    margin-bottom: 15px;
+}
+
 .checkbox-group {
     display: flex;
     flex-direction: column;
@@ -160,6 +148,11 @@ $custom_css = '
     margin: 0;
     cursor: pointer;
     font-size: 14px;
+}
+
+.checkbox-label-description {
+    color: #6b7280;
+    font-size: 12px;
 }
 
 .enabled-badge {
@@ -353,17 +346,27 @@ function createGeneralSettingsTab($config) {
     // Get enabled providers for the dropdown
     $enabled_providers = [];
     $provider_keys = ['openai', 'github', 'anthropic', 'gemini', 'deepseek', 'mistral', 'groq', 'custom'];
+    
+    $provider_labels = [
+        'openai' => 'OpenAI',
+        'github' => 'GitHub Models',
+        'anthropic' => 'Anthropic (Claude)',
+        'gemini' => 'Google Gemini',
+        'deepseek' => 'DeepSeek',
+        'mistral' => 'Mistral AI',
+        'groq' => 'Groq',
+        'custom' => 'Custom'
+    ];
+    
     foreach ($provider_keys as $provider) {
         if (isset($config[$provider]) && !empty($config[$provider]['enabled'])) {
-            $enabled_providers[$provider] = ucfirst($provider);
+            $enabled_providers[] = $provider;
         }
     }
     
     // If no providers enabled, show all
     if (empty($enabled_providers)) {
-        foreach ($provider_keys as $provider) {
-            $enabled_providers[$provider] = ucfirst($provider);
-        }
+        $enabled_providers = $provider_keys;
     }
     
     $container = new CDiv();
@@ -383,8 +386,15 @@ function createGeneralSettingsTab($config) {
     
     $default_provider_section->addItem(new CTag('h3', true, _('Default AI Provider')));
     
+    // Create CSelect with proper CSelectOption objects
     $provider_select = new CSelect('default_provider');
-    $provider_select->addOptions($enabled_providers);
+    
+    foreach ($enabled_providers as $provider) {
+        $provider_select->addOption(
+            new CSelectOption($provider, $provider_labels[$provider])
+        );
+    }
+    
     $provider_select->setValue($default_provider);
     $provider_select->setWidth(ZBX_TEXTAREA_MEDIUM_WIDTH);
     
@@ -406,10 +416,11 @@ function createGeneralSettingsTab($config) {
         ->addClass('general-settings-section');
     
     $quick_actions_section->addItem(new CTag('h3', true, _('Quick Actions')));
-    $quick_actions_section->addItem(
-        (new CTag('p', true, _('Enable AI-powered quick actions on monitoring pages. These add contextual AI analysis buttons to Problems, Latest Data, Triggers, and Hosts.')))
-            ->setStyle('color: #6b7280; font-size: 14px; margin-bottom: 15px;')
-    );
+    
+    $description = (new CDiv(_('Enable AI-powered quick actions on monitoring pages. These add contextual AI analysis buttons to Problems, Latest Data, Triggers, and Hosts.')))
+        ->addClass('general-settings-description');
+    
+    $quick_actions_section->addItem($description);
     
     $checkbox_group = new CDiv();
     $checkbox_group->addClass('checkbox-group');
@@ -429,11 +440,13 @@ function createGeneralSettingsTab($config) {
             ->setChecked(!empty($quick_actions[$key]))
             ->setId('qa_' . $key);
         
-        $label = (new CLabel([
+        $label_content = [
             new CTag('strong', true, $option['label']),
             new CTag('br'),
-            (new CTag('span', true, $option['description']))->setStyle('color: #6b7280; font-size: 12px;')
-        ], 'qa_' . $key));
+            (new CTag('span', true, $option['description']))->addClass('checkbox-label-description')
+        ];
+        
+        $label = new CLabel($label_content, 'qa_' . $key);
         
         $checkbox_item->addItem($checkbox);
         $checkbox_item->addItem($label);
