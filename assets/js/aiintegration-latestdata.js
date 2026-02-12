@@ -1,230 +1,163 @@
 /**
- * AI Integration - Latest Data Page Enhancement  
- * FIXED: Target actual data table, not filter
+ * AI Integration - Latest Data Page
+ * FINAL VERSION
  */
 (function() {
     'use strict';
     
     let settings = null;
-    let injectionAttempts = 0;
-    const MAX_ATTEMPTS = 20;
+    let injected = false;
     
-    function waitForDependencies(callback) {
-        if (typeof window.AIIntegrationCore !== 'undefined') {
-            callback();
-        } else {
-            setTimeout(() => waitForDependencies(callback), 100);
-        }
+    function init() {
+        console.log('AI Integration Latest Data: Init');
+        
+        window.AIIntegrationCore.loadSettings().then(s => {
+            settings = s;
+            
+            if (!settings.quick_actions || !settings.quick_actions.items) {
+                console.log('AI Integration Latest Data: Disabled');
+                return;
+            }
+            
+            setTimeout(injectButtons, 2000);
+        });
     }
     
-	function init() {
-		const Core = window.AIIntegrationCore;
-		
-		Core.loadSettings().then(loadedSettings => {
-			settings = loadedSettings;
-			
-			if (!settings.quick_actions.problems) { // or .items for latestdata
-				console.log('AI Integration: Quick actions disabled');
-				return;
-			}
-			
-			if (!settings.providers || settings.providers.length === 0) {
-				console.log('AI Integration: No providers enabled');
-				return;
-			}
-			
-			console.log('AI Integration: Initialized with settings:', settings);
-			
-			// Initial injection
-			setTimeout(injectProblemsButtons, 1000); // or injectLatestDataButtons
-			
-			// Re-inject ONLY on filter apply or pagination
-			// Listen for Zabbix's custom events instead of MutationObserver
-			document.addEventListener('zbx_table_updated', () => {
-				console.log('AI Integration: Table updated, re-injecting');
-				setTimeout(injectProblemsButtons, 500);
-			});
-			
-			// Fallback: Single re-injection after 3 seconds (for initial page load)
-			setTimeout(() => {
-				if (injectionAttempts === 0) {
-					injectProblemsButtons();
-				}
-			}, 3000);
-		});
-	}
-    
-    function injectLatestDataButtons() {
-        // Find the ACTUAL data table (not the filter)
-        // Look for table with data rows containing item info
-        const table = document.querySelector('table.list-table.compact-view') ||
-                     Array.from(document.querySelectorAll('table.list-table')).find(t => {
-                         const firstRow = t.querySelector('tbody tr');
-                         return firstRow && firstRow.querySelectorAll('td').length > 5;
-                     });
+    function injectButtons() {
+        if (injected) return;
         
-        if (!table) {
-            console.log('AI Integration: Latest Data table not found');
+        // Find the actual data table (not the filter)
+        const tables = document.querySelectorAll('table.list-table');
+        let dataTable = null;
+        
+        for (const table of tables) {
+            // Skip if it's in the filter section
+            if (table.closest('.filter-forms') || table.closest('.filter-container')) {
+                continue;
+            }
+            // Check if it has data rows
+            const firstRow = table.querySelector('tbody tr');
+            if (firstRow && firstRow.querySelectorAll('td').length > 3) {
+                dataTable = table;
+                break;
+            }
+        }
+        
+        if (!dataTable) {
+            console.log('AI Integration Latest Data: Table not found');
             return;
         }
         
-        // Make sure we're not in the filter section
-        if (table.closest('.filter-forms') || table.closest('.filter-container')) {
-            console.log('AI Integration: Skipping filter table');
-            return;
-        }
-        
-        const tbody = table.querySelector('tbody');
-        if (!tbody) return;
+        console.log('AI Integration Latest Data: Injecting');
         
         // Add header
-        const thead = table.querySelector('thead tr');
-        if (thead && !thead.querySelector('.aiintegration-header')) {
+        const thead = dataTable.querySelector('thead tr');
+        if (thead && !thead.querySelector('.ai-header')) {
             const th = document.createElement('th');
-            th.className = 'aiintegration-header';
+            th.className = 'ai-header';
             th.textContent = 'IA';
-            th.style.width = '50px';
-            th.style.textAlign = 'center';
+            th.style.cssText = 'width: 50px; text-align: center;';
             thead.appendChild(th);
         }
         
         // Add buttons
-        const rows = tbody.querySelectorAll('tr');
-        let injected = 0;
-        
+        const rows = dataTable.querySelectorAll('tbody tr');
         rows.forEach(row => {
-            if (row.querySelector('.aiintegration-sparkle-btn')) return;
+            if (row.querySelector('.ai-btn')) return;
             
             const td = document.createElement('td');
-            td.className = 'aiintegration-td';
-            td.style.textAlign = 'center';
+            td.className = 'ai-td';
+            td.style.cssText = 'text-align: center; vertical-align: middle;';
             
-            const btn = createSparkleButton();
-            btn.addEventListener('click', (e) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'ai-btn';
+            btn.innerHTML = '✨';
+            btn.style.cssText = 'background: linear-gradient(135deg, #10b981, #3b82f6); color: white; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 16px;';
+            btn.title = 'Analyze with AI';
+            
+            btn.onclick = function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                handleItemAnalysis(row);
-            });
+                e.stopImmediatePropagation();
+                handleClick(row);
+                return false;
+            };
+            
+            td.onclick = function(e) {
+                e.stopPropagation();
+            };
             
             td.appendChild(btn);
             row.appendChild(td);
-            injected++;
         });
         
-        if (injected > 0) {
-            injectionAttempts++;
-            console.log(`AI Integration: Injected ${injected} Latest Data buttons`);
-        }
+        injected = true;
+        console.log('AI Integration Latest Data: Done');
     }
     
-    function createSparkleButton() {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'aiintegration-sparkle-btn btn-icon';
-        btn.title = 'Analyze with AI';
-        btn.style.cssText = 'background: none; border: none; cursor: pointer; padding: 4px;';
-        btn.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" 
-                      fill="url(#sparkle-ld-${Date.now()})" stroke="#a855f7" stroke-width="1.5"/>
-                <defs>
-                    <linearGradient id="sparkle-ld-${Date.now()}" x1="2" y1="2" x2="22" y2="22">
-                        <stop offset="0%" style="stop-color:#a855f7;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#6366f1;stop-opacity:1" />
-                    </linearGradient>
-                </defs>
-            </svg>
-        `;
-        return btn;
-    }
-    
-    function handleItemAnalysis(row) {
-        if (!settings) {
-            alert('Settings not loaded');
-            return;
-        }
+    function handleClick(row) {
+        console.log('AI Integration Latest Data: Clicked');
         
-        const itemData = extractItemData(row);
-        console.log('AI Integration: Item data', itemData);
-        showAnalysisModal(itemData);
+        const hostLink = row.querySelector('a[href*="hostid"]');
+        const nameLink = row.querySelector('a[href*="itemid"]') || row.querySelector('td:nth-child(2) a');
+        
+        const cells = Array.from(row.querySelectorAll('td'));
+        
+        const data = {
+            host: hostLink ? hostLink.textContent.trim() : 'N/A',
+            name: nameLink ? nameLink.textContent.trim() : (cells[1] ? cells[1].textContent.trim() : 'N/A'),
+            lastCheck: cells[2] ? cells[2].textContent.trim() : 'N/A',
+            lastValue: cells[3] ? cells[3].textContent.trim() : 'N/A',
+            change: cells[4] ? cells[4].textContent.trim() : 'N/A'
+        };
+        
+        console.log('AI Integration Latest Data: Extracted:', data);
+        showModal(data);
     }
     
-	function extractItemData(row) {
-		const cells = Array.from(row.querySelectorAll('td'));
-		
-		console.log('AI Integration: Latest Data cell count:', cells.length);
-		
-		// Find host link
-		const hostLink = row.querySelector('a[href*="hostid"]');
-		const host = hostLink ? hostLink.textContent.trim() : 'N/A';
-		
-		// Find item name (usually second column or has a link)
-		const nameLink = row.querySelector('a[href*="itemid"]') ||
-						row.querySelector('a.link-alt');
-		const name = nameLink ? nameLink.textContent.trim() : 
-					(cells[1] ? cells[1].textContent.trim() : 'N/A');
-		
-		// Last check time (usually has time format)
-		const lastCheckEl = cells.find(c => c.textContent.match(/\d{2}:\d{2}:\d{2}|\d+[smh]/));
-		const lastCheck = lastCheckEl ? lastCheckEl.textContent.trim() : '';
-		
-		// Last value (usually bold or has value class)
-		const lastValueEl = row.querySelector('.bold') || 
-						row.querySelector('[class*="value"]') ||
-						cells[cells.length - 3]; // Usually third from end
-		const lastValue = lastValueEl ? lastValueEl.textContent.trim() : '';
-		
-		// Change (usually has +/- or percentage)
-		const changeEl = cells.find(c => c.textContent.match(/[+\-]\d+|%/));
-		const change = changeEl ? changeEl.textContent.trim() : '';
-		
-		const extracted = {
-			host: host,
-			name: name,
-			lastCheck: lastCheck,
-			lastValue: lastValue,
-			change: change
-		};
-		
-		console.log('AI Integration: Extracted item data:', extracted);
-		return extracted;
-	}
-    
-    function showAnalysisModal(itemData) {
-        const Core = window.AIIntegrationCore;
-        
+    function showModal(data) {
         const content = document.createElement('div');
         
-        const summaryTable = document.createElement('table');
-        summaryTable.className = 'aiintegration-summary-table';
-        summaryTable.innerHTML = `
-            <tr><td>Host:</td><td>${Core.escapeHtml(itemData.host || 'N/A')}</td></tr>
-            <tr><td>Item:</td><td>${Core.escapeHtml(itemData.name || 'N/A')}</td></tr>
-            <tr><td>Last Value:</td><td>${Core.escapeHtml(itemData.lastValue || 'N/A')}</td></tr>
-            <tr><td>Last Check:</td><td>${Core.escapeHtml(itemData.lastCheck || 'N/A')}</td></tr>
+        content.innerHTML = `
+            <table style="width: 100%; margin-bottom: 20px; border-collapse: collapse;">
+                <tr><td style="padding: 8px; font-weight: bold; width: 120px;">Host:</td><td style="padding: 8px;">${escapeHtml(data.host)}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Item:</td><td style="padding: 8px;">${escapeHtml(data.name)}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Last Value:</td><td style="padding: 8px;">${escapeHtml(data.lastValue)}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Change:</td><td style="padding: 8px;">${escapeHtml(data.change)}</td></tr>
+            </table>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Ask AI:</label>
+                <textarea id="ai_question" rows="4" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px;">Analyze this monitoring item:
+
+Item: ${data.name}
+Host: ${data.host}
+Current Value: ${data.lastValue}
+Change: ${data.change}
+
+Is this value normal? Are there any anomalies or concerns?</textarea>
+            </div>
+            <div id="ai_response" style="display: none;"></div>
         `;
-        content.appendChild(summaryTable);
         
-        const questionField = document.createElement('div');
-        questionField.className = 'aiintegration-field';
-        questionField.innerHTML = `
-            <label>Ask AI:</label>
-            <textarea id="ai_question" rows="4" placeholder="Analyze this item...">Analyze this monitoring item: ${itemData.name} on ${itemData.host}. Current value: ${itemData.lastValue}. Is this normal?</textarea>
-        `;
-        content.appendChild(questionField);
+        const providerSelect = document.createElement('select');
+        providerSelect.style.cssText = 'background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 5px 10px; border-radius: 4px;';
         
-        const responseDiv = document.createElement('div');
-        responseDiv.id = 'ai_response_area';
-        responseDiv.style.display = 'none';
-        content.appendChild(responseDiv);
+        if (settings && settings.providers) {
+            settings.providers.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name;
+                providerSelect.appendChild(opt);
+            });
+            providerSelect.value = settings.default_provider || 'github';
+        }
         
-        const providerSelect = createProviderSelect();
-        
-        const modal = Core.openModal(
+        const modal = window.AIIntegrationCore.openModal(
             '📊 AI Item Analysis',
             content,
             [],
-            { headerExtra: providerSelect }
+            {headerExtra: providerSelect}
         );
         
         modal.setActions([
@@ -236,22 +169,24 @@
                     const provider = providerSelect.value;
                     
                     btn.disabled = true;
-                    btn.innerHTML = '<span class="aiintegration-loading"></span> Analyzing...';
+                    btn.textContent = 'Analyzing...';
                     
-                    Core.callAI(question, { item: itemData }, provider)
-                        .then(data => {
-                            const responseArea = document.getElementById('ai_response_area');
-                            responseArea.style.display = 'block';
-                            responseArea.innerHTML = `<div class="aiintegration-response">${Core.escapeHtml(data.response)}</div>`;
+                    window.AIIntegrationCore.callAI(question, data, provider)
+                        .then(result => {
+                            const resp = document.getElementById('ai_response');
+                            resp.style.display = 'block';
+                            resp.style.cssText = 'padding: 15px; background: #f0f7ff; border-radius: 6px; margin-top: 15px; white-space: pre-wrap; font-family: system-ui; line-height: 1.6;';
+                            resp.textContent = result.response;
                             btn.disabled = false;
-                            btn.textContent = 'Analyze';
+                            btn.textContent = 'Analyze Again';
                         })
                         .catch(err => {
-                            const responseArea = document.getElementById('ai_response_area');
-                            responseArea.style.display = 'block';
-                            responseArea.innerHTML = `<div class="aiintegration-error">${Core.escapeHtml(err.message)}</div>`;
+                            const resp = document.getElementById('ai_response');
+                            resp.style.display = 'block';
+                            resp.style.cssText = 'padding: 15px; background: #fee; border: 1px solid #fcc; border-radius: 6px; margin-top: 15px; color: #c00;';
+                            resp.textContent = 'Error: ' + err.message;
                             btn.disabled = false;
-                            btn.textContent = 'Analyze';
+                            btn.textContent = 'Retry';
                         });
                 }
             },
@@ -263,35 +198,15 @@
         ]);
     }
     
-    function createProviderSelect() {
-        const select = document.createElement('select');
-        select.id = 'provider_select';
-        
-        if (!settings || !settings.providers || settings.providers.length === 0) {
-            const option = document.createElement('option');
-            option.value = 'openai';
-            option.textContent = 'No providers';
-            select.appendChild(option);
-            select.disabled = true;
-            return select;
-        }
-        
-        settings.providers.forEach(provider => {
-            const option = document.createElement('option');
-            option.value = provider.id;
-            option.textContent = provider.name;
-            if (provider.id === settings.default_provider) {
-                option.selected = true;
-            }
-            select.appendChild(option);
-        });
-        
-        return select;
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
     
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => waitForDependencies(init));
+        document.addEventListener('DOMContentLoaded', init);
     } else {
-        waitForDependencies(init);
+        init();
     }
 })();
