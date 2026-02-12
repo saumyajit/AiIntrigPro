@@ -140,39 +140,49 @@
         showAnalysisModal(problemData);
     }
     
-    function extractProblemData(row) {
-        const cells = row.querySelectorAll('td');
-        
-        // Try to get data from cells (adjust indices based on your table structure)
-        let time = '', severity = '', problem = '', host = '', duration = '';
-        
-        // Try different cell indices
-        try {
-            time = cells[1]?.textContent?.trim() || '';
-            severity = cells[2]?.querySelector('.problem-severity')?.textContent?.trim() || 
-                      cells[2]?.textContent?.trim() || '';
-            
-            // Problem name is usually a link
-            const problemLink = row.querySelector('a[href*="triggerids"]');
-            problem = problemLink?.textContent?.trim() || cells[4]?.textContent?.trim() || '';
-            
-            // Host name
-            const hostLink = row.querySelector('a[href*="hostid"]');
-            host = hostLink?.textContent?.trim() || cells[6]?.textContent?.trim() || '';
-            
-            duration = cells[7]?.textContent?.trim() || cells[8]?.textContent?.trim() || '';
-        } catch (e) {
-            console.error('AI Integration: Error extracting problem data', e);
-        }
-        
-        return {
-            time: time,
-            severity: severity,
-            problem: problem,
-            host: host,
-            duration: duration
-        };
-    }
+	function extractProblemData(row) {
+		const cells = Array.from(row.querySelectorAll('td'));
+		
+		// Debug: log cell contents
+		console.log('AI Integration: Cell count:', cells.length);
+		cells.forEach((cell, idx) => {
+			console.log(`Cell ${idx}:`, cell.textContent.trim().substring(0, 50));
+		});
+		
+		// Find problem name (usually has a link to trigger)
+		const problemLink = row.querySelector('a[href*="triggerids"]') || 
+						row.querySelector('a.link-action');
+		const problem = problemLink ? problemLink.textContent.trim() : '';
+		
+		// Find host name (usually has a link to host)
+		const hostLink = row.querySelector('a[href*="hostid"]');
+		const host = hostLink ? hostLink.textContent.trim() : '';
+		
+		// Find severity (usually has a badge or class)
+		const severityEl = row.querySelector('.problem-severity-badge') ||
+						row.querySelector('[class*="severity"]') ||
+						cells.find(c => c.textContent.match(/Not classified|Information|Warning|Average|High|Disaster/i));
+		const severity = severityEl ? severityEl.textContent.trim() : '';
+		
+		// Time is usually first or second cell
+		const timeEl = cells.find(c => c.textContent.match(/\d{4}-\d{2}-\d{2}|\d+[smhd]/));
+		const time = timeEl ? timeEl.textContent.trim() : '';
+		
+		// Duration is usually near the end
+		const durationEl = cells.find(c => c.textContent.match(/\d+[smhd]/) && c !== timeEl);
+		const duration = durationEl ? durationEl.textContent.trim() : '';
+		
+		const extracted = {
+			time: time,
+			severity: severity,
+			problem: problem,
+			host: host,
+			duration: duration
+		};
+		
+		console.log('AI Integration: Extracted problem data:', extracted);
+		return extracted;
+	}
     
     function showAnalysisModal(problemData) {
         const Core = window.AIIntegrationCore;
