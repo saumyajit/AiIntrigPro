@@ -17,40 +17,42 @@
         }
     }
     
-    function init() {
-        const Core = window.AIIntegrationCore;
-        
-        Core.loadSettings().then(loadedSettings => {
-            settings = loadedSettings;
-            
-            if (!settings.quick_actions.items) {
-                console.log('AI Integration: Latest Data quick actions disabled');
-                return;
-            }
-            
-            if (!settings.providers || settings.providers.length === 0) {
-                console.log('AI Integration: No providers enabled');
-                return;
-            }
-            
-            console.log('AI Integration: Latest Data page initialized');
-            
-            // Initial injection
-            injectLatestDataButtons();
-            
-            // Re-inject on changes
-            const observer = new MutationObserver(() => {
-                if (injectionAttempts < MAX_ATTEMPTS) {
-                    setTimeout(injectLatestDataButtons, 500);
-                }
-            });
-            
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
-        });
-    }
+	function init() {
+		const Core = window.AIIntegrationCore;
+		
+		Core.loadSettings().then(loadedSettings => {
+			settings = loadedSettings;
+			
+			if (!settings.quick_actions.problems) { // or .items for latestdata
+				console.log('AI Integration: Quick actions disabled');
+				return;
+			}
+			
+			if (!settings.providers || settings.providers.length === 0) {
+				console.log('AI Integration: No providers enabled');
+				return;
+			}
+			
+			console.log('AI Integration: Initialized with settings:', settings);
+			
+			// Initial injection
+			setTimeout(injectProblemsButtons, 1000); // or injectLatestDataButtons
+			
+			// Re-inject ONLY on filter apply or pagination
+			// Listen for Zabbix's custom events instead of MutationObserver
+			document.addEventListener('zbx_table_updated', () => {
+				console.log('AI Integration: Table updated, re-injecting');
+				setTimeout(injectProblemsButtons, 500);
+			});
+			
+			// Fallback: Single re-injection after 3 seconds (for initial page load)
+			setTimeout(() => {
+				if (injectionAttempts === 0) {
+					injectProblemsButtons();
+				}
+			}, 3000);
+		});
+	}
     
     function injectLatestDataButtons() {
         // Find the ACTUAL data table (not the filter)
