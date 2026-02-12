@@ -541,35 +541,36 @@ $page->addItem($form);
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('ai_config_form');
-    const providerInput = document.getElementById('provider');
     const tabButtons = document.querySelectorAll('.tabs-nav button');
-    
-    // Track current tab
     let currentTab = 'general';
     
-    // Handle tab changes
-    tabButtons.forEach(button => {
+    // Restore last active tab from URL hash or localStorage
+    const savedTab = window.location.hash.substring(1) || localStorage.getItem('ai_config_active_tab') || 'general';
+    
+    // Track current tab
+    tabButtons.forEach((button, index) => {
         button.addEventListener('click', function() {
             const tabId = this.getAttribute('data-target');
             if (tabId) {
                 currentTab = tabId;
-                providerInput.value = tabId;
+                localStorage.setItem('ai_config_active_tab', tabId);
+                window.location.hash = tabId;
             }
         });
-    });
-    
-    // Handle Save button
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
         
-        if (currentTab === 'general') {
-            saveGeneralSettings();
-        } else {
-            saveProviderConfig(currentTab);
+        // Activate saved tab
+        if (button.getAttribute('data-target') === savedTab) {
+            setTimeout(() => button.click(), 100);
         }
     });
     
-    // Handle Test button
+    // Handle Save - submit entire form
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        saveAllConfig();
+    });
+    
+    // Handle Test
     const testBtn = document.querySelector('button[name="test"]');
     if (testBtn) {
         testBtn.addEventListener('click', function(e) {
@@ -580,36 +581,33 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Save provider configuration
-    function saveProviderConfig(provider) {
-        const endpoint = document.querySelector(`input[name="${provider}_api_endpoint"]`)?.value || '';
-        const apiKey = document.querySelector(`input[name="${provider}_api_key"]`)?.value || '';
-        const model = document.querySelector(`input[name="${provider}_default_model"]`)?.value || '';
-        const temperature = document.querySelector(`input[name="${provider}_temperature"]`)?.value || '0.7';
-        const maxTokens = document.querySelector(`input[name="${provider}_max_tokens"]`)?.value || '1000';
-        const enabled = document.querySelector(`input[name="${provider}_enabled"]`)?.checked ? '1' : '';
+    // Save ALL configuration at once
+    function saveAllConfig() {
+        const formData = new FormData(form);
+        const params = new URLSearchParams();
         
-        const formData = new URLSearchParams();
-        formData.append('provider', provider);
-        formData.append('api_endpoint', endpoint);
-        formData.append('api_key', apiKey);
-        formData.append('default_model', model);
-        formData.append('temperature', temperature);
-        formData.append('max_tokens', maxTokens);
-        if (enabled) formData.append('enabled', enabled);
-        formData.append('save', '1');
+        for (const [key, value] of formData.entries()) {
+            params.append(key, value);
+        }
+        
+        params.append('save', '1');
         
         showMessage('Saving...', 'info');
         
         fetch('zabbix.php?action=aiintegration.config', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: formData.toString()
+            body: params.toString()
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 showMessage(data.message, 'success');
+                // Reload with hash to restore tab
+                setTimeout(() => {
+                    window.location.href = 'zabbix.php?action=aiintegration.config#' + currentTab;
+                    window.location.reload();
+                }, 1500);
             } else {
                 showMessage(data.message || 'Save failed', 'error');
             }
@@ -619,46 +617,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Save general settings
-    function saveGeneralSettings() {
-        const defaultProvider = document.querySelector('select[name="default_provider"]')?.value || 'openai';
-        const qaProblems = document.getElementById('qa_problems')?.checked ? '1' : '';
-        const qaItems = document.getElementById('qa_items')?.checked ? '1' : '';
-        const qaTriggers = document.getElementById('qa_triggers')?.checked ? '1' : '';
-        const qaHosts = document.getElementById('qa_hosts')?.checked ? '1' : '';
-        
-        const formData = new URLSearchParams();
-        formData.append('default_provider', defaultProvider);
-        if (qaProblems) formData.append('qa_problems', qaProblems);
-        if (qaItems) formData.append('qa_items', qaItems);
-        if (qaTriggers) formData.append('qa_triggers', qaTriggers);
-        if (qaHosts) formData.append('qa_hosts', qaHosts);
-        formData.append('save_general', '1');
-        
-        showMessage('Saving...', 'info');
-        
-        fetch('zabbix.php?action=aiintegration.config', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: formData.toString()
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showMessage(data.message, 'success');
-            } else {
-                showMessage(data.message || 'Save failed', 'error');
-            }
-        })
-        .catch(error => {
-            showMessage('Network error: ' + error.message, 'error');
-        });
-    }
-    
-    // Test connection
     function testConnection(provider) {
-        const endpoint = document.querySelector(`input[name="${provider}_api_endpoint"]`)?.value || '';
-        const apiKey = document.querySelector(`input[name="${provider}_api_key"]`)?.value || '';
+        const endpoint = document.getElementById(provider + '_api_endpoint')?.value || '';
+        const apiKey = document.getElementById(provider + '_api_key')?.value || '';
         
         if (!apiKey) {
             showMessage('Please enter an API key first', 'error');
@@ -691,15 +652,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Show message
     function showMessage(message, type) {
         const testResult = document.getElementById('test_result');
         testResult.textContent = message;
-        testResult.className = 'ai-test-result ai-info-box show ' + type;
         
-        setTimeout(() => {
-            testResult.classList.remove('show');
-        }, 5000);
+        let cssClass = 'ai-info-box';
+        if (type === 'success') cssClass = 'ai-info-box success';
+        else if (type === 'error') cssClass = 'ai-info-box error';
+        else if (type === 'warning') cssClass = 'ai-info-box warning';
+        
+        testResult.className = 'ai-test-result show ' + cssClass;
+        
+        if (type !== 'success') {
+            setTimeout(() => {
+                testResult.classList.remove('show');
+            }, 5000);
+        }
     }
 });
 </script>
