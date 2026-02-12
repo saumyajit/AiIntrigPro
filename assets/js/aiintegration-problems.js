@@ -1,176 +1,218 @@
 /**
- * AI Integration - Problems Page
- * FINAL FIXED VERSION
+ * AI Integration - Problems Page Enhancement
+ * FIXED: Proper table detection, persistent buttons, correct provider loading
  */
 (function() {
     'use strict';
     
     let settings = null;
-    let injected = false;
+    let injectionAttempts = 0;
+    const MAX_ATTEMPTS = 20;
+    
+    function waitForDependencies(callback) {
+        if (typeof window.AIIntegrationCore !== 'undefined') {
+            callback();
+        } else {
+            setTimeout(() => waitForDependencies(callback), 100);
+        }
+    }
     
     function init() {
-        console.log('AI Integration Problems: Init');
+        const Core = window.AIIntegrationCore;
         
-        window.AIIntegrationCore.loadSettings().then(s => {
-            settings = s;
+        Core.loadSettings().then(loadedSettings => {
+            settings = loadedSettings;
             
-            if (!settings.quick_actions || !settings.quick_actions.problems) {
-                console.log('AI Integration Problems: Disabled');
+            if (!settings.quick_actions.problems) {
+                console.log('AI Integration: Problems quick actions disabled');
                 return;
             }
             
-            setTimeout(injectButtons, 2000);
+            if (!settings.providers || settings.providers.length === 0) {
+                console.log('AI Integration: No providers enabled');
+                return;
+            }
+            
+            console.log('AI Integration: Problems page initialized', settings);
+            
+            // Initial injection
+            injectProblemsButtons();
+            
+            // Re-inject on any DOM changes (Zabbix updates table dynamically)
+            const observer = new MutationObserver(() => {
+                if (injectionAttempts < MAX_ATTEMPTS) {
+                    setTimeout(injectProblemsButtons, 500);
+                }
+            });
+            
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
         });
     }
     
-    function injectButtons() {
-        if (injected) return;
+    function injectProblemsButtons() {
+        // Look for the actual problems table (not filter)
+        const table = document.querySelector('table.list-table[data-table-name="problems"]') ||
+                     document.querySelector('form[name="problem"] table.list-table') ||
+                     document.querySelector('.list-table tbody tr[data-problemid]')?.closest('table');
         
-        const table = document.querySelector('table.list-table');
         if (!table) {
-            console.log('AI Integration Problems: Table not found');
+            console.log('AI Integration: Problems table not found');
             return;
         }
         
-        console.log('AI Integration Problems: Injecting');
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
         
-        // Add header
+        // Add header if not exists
         const thead = table.querySelector('thead tr');
-        if (thead && !thead.querySelector('.ai-header')) {
+        if (thead && !thead.querySelector('.aiintegration-header')) {
             const th = document.createElement('th');
-            th.className = 'ai-header';
+            th.className = 'aiintegration-header';
             th.textContent = 'IA';
-            th.style.cssText = 'width: 50px; text-align: center;';
+            th.style.width = '50px';
+            th.style.textAlign = 'center';
             thead.appendChild(th);
         }
         
-        // Add buttons
-        const rows = table.querySelectorAll('tbody tr');
+        // Add buttons to each row
+        const rows = tbody.querySelectorAll('tr');
+        let injected = 0;
+        
         rows.forEach(row => {
-            if (row.querySelector('.ai-btn')) return;
+            // Skip if already has button
+            if (row.querySelector('.aiintegration-sparkle-btn')) return;
             
             const td = document.createElement('td');
-            td.className = 'ai-td';
-            td.style.cssText = 'text-align: center; vertical-align: middle;';
+            td.className = 'aiintegration-td';
+            td.style.textAlign = 'center';
+            td.style.verticalAlign = 'middle';
             
-            const btn = document.createElement('button');
-            btn.type = 'button'; // Important!
-            btn.className = 'ai-btn';
-            btn.innerHTML = '✨';
-            btn.style.cssText = 'background: linear-gradient(135deg, #a855f7, #6366f1); color: white; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 16px;';
-            btn.title = 'Analyze with AI';
-            
-            // Prevent row click
-            btn.onclick = function(e) {
+            const btn = createSparkleButton();
+            btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                e.stopImmediatePropagation();
-                handleClick(row);
-                return false;
-            };
-            
-            // Also prevent on td
-            td.onclick = function(e) {
-                e.stopPropagation();
-            };
+                handleProblemAnalysis(row);
+            });
             
             td.appendChild(btn);
             row.appendChild(td);
+            injected++;
         });
         
-        injected = true;
-        console.log('AI Integration Problems: Done, injected ' + rows.length);
+        if (injected > 0) {
+            injectionAttempts++;
+            console.log(`AI Integration: Injected ${injected} buttons (attempt ${injectionAttempts})`);
+        }
     }
     
-    function handleClick(row) {
-        console.log('AI Integration Problems: Clicked');
+    function createSparkleButton() {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'aiintegration-sparkle-btn btn-icon';
+        btn.title = 'Analyze with AI';
+        btn.style.cssText = 'background: none; border: none; cursor: pointer; padding: 4px;';
+        btn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" 
+                      fill="url(#sparkle-gradient-${Date.now()})" stroke="#a855f7" stroke-width="1.5"/>
+                <defs>
+                    <linearGradient id="sparkle-gradient-${Date.now()}" x1="2" y1="2" x2="22" y2="22">
+                        <stop offset="0%" style="stop-color:#a855f7;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#6366f1;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+            </svg>
+        `;
+        return btn;
+    }
+    
+    function handleProblemAnalysis(row) {
+        if (!settings) {
+            alert('Settings not loaded. Please refresh the page.');
+            return;
+        }
         
-        // Find specific elements by href patterns
-        const problemLink = row.querySelector('a[href*="triggerids"]') || 
-                           row.querySelector('td:nth-child(6) a') ||
-                           row.querySelector('a.link-action');
+        const problemData = extractProblemData(row);
+        console.log('AI Integration: Problem data extracted', problemData);
+        showAnalysisModal(problemData);
+    }
+    
+    function extractProblemData(row) {
+        const cells = row.querySelectorAll('td');
         
-        const hostLink = row.querySelector('a[href*="hostid"]') ||
-                        row.querySelector('td:nth-child(5) a');
+        // Try to get data from cells (adjust indices based on your table structure)
+        let time = '', severity = '', problem = '', host = '', duration = '';
         
-        // Get severity badge
-        const severityCell = row.querySelector('td[class*="severity"]') || 
-                            row.querySelector('td:nth-child(2)');
-        const severityText = severityCell ? severityCell.textContent.trim() : 'N/A';
+        // Try different cell indices
+        try {
+            time = cells[1]?.textContent?.trim() || '';
+            severity = cells[2]?.querySelector('.problem-severity')?.textContent?.trim() || 
+                      cells[2]?.textContent?.trim() || '';
+            
+            // Problem name is usually a link
+            const problemLink = row.querySelector('a[href*="triggerids"]');
+            problem = problemLink?.textContent?.trim() || cells[4]?.textContent?.trim() || '';
+            
+            // Host name
+            const hostLink = row.querySelector('a[href*="hostid"]');
+            host = hostLink?.textContent?.trim() || cells[6]?.textContent?.trim() || '';
+            
+            duration = cells[7]?.textContent?.trim() || cells[8]?.textContent?.trim() || '';
+        } catch (e) {
+            console.error('AI Integration: Error extracting problem data', e);
+        }
         
-        // Get time from first cell
-        const timeCell = row.querySelector('td:first-child');
-        const timeText = timeCell ? timeCell.textContent.trim() : 'N/A';
-        
-        // Get duration (usually one of the last cells before actions)
-        const cells = Array.from(row.querySelectorAll('td'));
-        const durationCell = cells[cells.length - 4] || cells[cells.length - 3];
-        const durationText = durationCell ? durationCell.textContent.trim() : 'N/A';
-        
-        const data = {
-            problem: problemLink ? problemLink.textContent.trim() : 'No problem name found',
-            host: hostLink ? hostLink.textContent.trim() : 'No host found',
-            severity: severityText,
-            time: timeText,
-            duration: durationText
+        return {
+            time: time,
+            severity: severity,
+            problem: problem,
+            host: host,
+            duration: duration
         };
-        
-        console.log('AI Integration Problems: Extracted:', data);
-        
-        // Validate we got actual data
-        if (data.problem.includes('PM') || data.problem.includes('AM') || data.problem.length < 5) {
-            data.problem = 'Problem name could not be extracted';
-        }
-        
-        if (data.host.includes('PM') || data.host.includes('AM') || data.host.length < 3) {
-            data.host = 'Host name could not be extracted';
-        }
-        
-        showModal(data);
     }
     
-    function showModal(data) {
+    function showAnalysisModal(problemData) {
+        const Core = window.AIIntegrationCore;
+        
         const content = document.createElement('div');
         
-        content.innerHTML = `
-            <table style="width: 100%; margin-bottom: 20px; border-collapse: collapse;">
-                <tr><td style="padding: 8px; font-weight: bold; width: 120px;">Problem:</td><td style="padding: 8px;">${escapeHtml(data.problem)}</td></tr>
-                <tr><td style="padding: 8px; font-weight: bold;">Host:</td><td style="padding: 8px;">${escapeHtml(data.host)}</td></tr>
-                <tr><td style="padding: 8px; font-weight: bold;">Severity:</td><td style="padding: 8px;">${escapeHtml(data.severity)}</td></tr>
-                <tr><td style="padding: 8px; font-weight: bold;">Duration:</td><td style="padding: 8px;">${escapeHtml(data.duration)}</td></tr>
-            </table>
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Ask AI:</label>
-                <textarea id="ai_question" rows="5" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px;">Analyze this problem and suggest possible causes and remediation steps:
-
-Problem: ${data.problem}
-Host: ${data.host}
-Severity: ${data.severity}
-Duration: ${data.duration}
-
-What could be causing this issue and how can it be resolved?</textarea>
-            </div>
-            <div id="ai_response" style="display: none;"></div>
+        // Summary
+        const summaryTable = document.createElement('table');
+        summaryTable.className = 'aiintegration-summary-table';
+        summaryTable.innerHTML = `
+            <tr><td>Problem:</td><td>${Core.escapeHtml(problemData.problem || 'N/A')}</td></tr>
+            <tr><td>Host:</td><td>${Core.escapeHtml(problemData.host || 'N/A')}</td></tr>
+            <tr><td>Severity:</td><td>${Core.escapeHtml(problemData.severity || 'N/A')}</td></tr>
+            <tr><td>Duration:</td><td>${Core.escapeHtml(problemData.duration || 'N/A')}</td></tr>
         `;
+        content.appendChild(summaryTable);
         
-        const providerSelect = document.createElement('select');
-        providerSelect.style.cssText = 'background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 5px 10px; border-radius: 4px;';
+        // Question field
+        const questionField = document.createElement('div');
+        questionField.className = 'aiintegration-field';
+        questionField.innerHTML = `
+            <label>Ask AI:</label>
+            <textarea id="ai_question" rows="4" placeholder="What could be causing this issue?">${getDefaultQuestion(problemData)}</textarea>
+        `;
+        content.appendChild(questionField);
         
-        if (settings && settings.providers) {
-            settings.providers.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.id;
-                opt.textContent = p.name;
-                providerSelect.appendChild(opt);
-            });
-            providerSelect.value = settings.default_provider || 'github';
-        }
+        // Response area
+        const responseDiv = document.createElement('div');
+        responseDiv.id = 'ai_response_area';
+        responseDiv.style.display = 'none';
+        content.appendChild(responseDiv);
         
-        const modal = window.AIIntegrationCore.openModal(
+        // Provider selector
+        const providerSelect = createProviderSelect();
+        
+        const modal = Core.openModal(
             '✨ AI Problem Analysis',
             content,
             [],
-            {headerExtra: providerSelect}
+            { headerExtra: providerSelect }
         );
         
         modal.setActions([
@@ -181,30 +223,24 @@ What could be causing this issue and how can it be resolved?</textarea>
                     const question = document.getElementById('ai_question').value;
                     const provider = providerSelect.value;
                     
-                    if (!question.trim()) {
-                        alert('Please enter a question');
+                    if (!question) {
+                        showError('Please enter a question');
                         return;
                     }
                     
                     btn.disabled = true;
-                    btn.textContent = 'Analyzing...';
+                    btn.innerHTML = '<span class="aiintegration-loading"></span> Analyzing...';
                     
-                    window.AIIntegrationCore.callAI(question, data, provider)
-                        .then(result => {
-                            const resp = document.getElementById('ai_response');
-                            resp.style.display = 'block';
-                            resp.style.cssText = 'padding: 15px; background: #f0f7ff; border-radius: 6px; margin-top: 15px; white-space: pre-wrap; font-family: system-ui; line-height: 1.6;';
-                            resp.textContent = result.response;
+                    Core.callAI(question, { problem: problemData }, provider)
+                        .then(data => {
+                            showResponse(data.response);
                             btn.disabled = false;
-                            btn.textContent = 'Analyze Again';
+                            btn.textContent = 'Analyze';
                         })
                         .catch(err => {
-                            const resp = document.getElementById('ai_response');
-                            resp.style.display = 'block';
-                            resp.style.cssText = 'padding: 15px; background: #fee; border: 1px solid #fcc; border-radius: 6px; margin-top: 15px; color: #c00; white-space: pre-wrap;';
-                            resp.textContent = 'Error: ' + err.message;
+                            showError(err.message || 'Analysis failed');
                             btn.disabled = false;
-                            btn.textContent = 'Retry';
+                            btn.textContent = 'Analyze';
                         });
                 }
             },
@@ -214,18 +250,57 @@ What could be causing this issue and how can it be resolved?</textarea>
                 onClick: (close) => close()
             }
         ]);
+        
+        function showResponse(text) {
+            const responseArea = document.getElementById('ai_response_area');
+            responseArea.style.display = 'block';
+            responseArea.innerHTML = `<div class="aiintegration-response">${Core.escapeHtml(text)}</div>`;
+        }
+        
+        function showError(message) {
+            const responseArea = document.getElementById('ai_response_area');
+            responseArea.style.display = 'block';
+            responseArea.innerHTML = `<div class="aiintegration-error">${Core.escapeHtml(message)}</div>`;
+        }
     }
     
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+    function createProviderSelect() {
+        const select = document.createElement('select');
+        select.id = 'provider_select';
+        
+        if (!settings || !settings.providers || settings.providers.length === 0) {
+            const option = document.createElement('option');
+            option.value = 'openai';
+            option.textContent = 'No providers configured';
+            select.appendChild(option);
+            select.disabled = true;
+            return select;
+        }
+        
+        settings.providers.forEach(provider => {
+            const option = document.createElement('option');
+            option.value = provider.id;
+            option.textContent = provider.name;
+            if (provider.id === settings.default_provider) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+        
+        return select;
     }
     
-    // Start
+    function getDefaultQuestion(problemData) {
+        if (!problemData.problem) {
+            return 'Analyze this problem and suggest possible causes and remediation steps.';
+        }
+        return `Analyze this problem and suggest possible causes and remediation steps:\n\nProblem: ${problemData.problem}\nHost: ${problemData.host}\nSeverity: ${problemData.severity}`;
+    }
+    
+    // Initialize
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', () => waitForDependencies(init));
     } else {
-        init();
+        waitForDependencies(init);
     }
 })();
