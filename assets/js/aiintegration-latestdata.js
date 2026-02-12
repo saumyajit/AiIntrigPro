@@ -147,20 +147,46 @@
         showAnalysisModal(itemData);
     }
     
-    function extractItemData(row) {
-        const cells = row.querySelectorAll('td');
-        
-        const hostLink = row.querySelector('a[href*="hostid"]');
-        const nameCell = cells[1] || cells[0];
-        
-        return {
-            host: hostLink?.textContent?.trim() || '',
-            name: nameCell?.textContent?.trim() || '',
-            lastCheck: cells[2]?.textContent?.trim() || '',
-            lastValue: cells[3]?.textContent?.trim() || '',
-            change: cells[4]?.textContent?.trim() || ''
-        };
-    }
+	function extractItemData(row) {
+		const cells = Array.from(row.querySelectorAll('td'));
+		
+		console.log('AI Integration: Latest Data cell count:', cells.length);
+		
+		// Find host link
+		const hostLink = row.querySelector('a[href*="hostid"]');
+		const host = hostLink ? hostLink.textContent.trim() : 'N/A';
+		
+		// Find item name (usually second column or has a link)
+		const nameLink = row.querySelector('a[href*="itemid"]') ||
+						row.querySelector('a.link-alt');
+		const name = nameLink ? nameLink.textContent.trim() : 
+					(cells[1] ? cells[1].textContent.trim() : 'N/A');
+		
+		// Last check time (usually has time format)
+		const lastCheckEl = cells.find(c => c.textContent.match(/\d{2}:\d{2}:\d{2}|\d+[smh]/));
+		const lastCheck = lastCheckEl ? lastCheckEl.textContent.trim() : '';
+		
+		// Last value (usually bold or has value class)
+		const lastValueEl = row.querySelector('.bold') || 
+						row.querySelector('[class*="value"]') ||
+						cells[cells.length - 3]; // Usually third from end
+		const lastValue = lastValueEl ? lastValueEl.textContent.trim() : '';
+		
+		// Change (usually has +/- or percentage)
+		const changeEl = cells.find(c => c.textContent.match(/[+\-]\d+|%/));
+		const change = changeEl ? changeEl.textContent.trim() : '';
+		
+		const extracted = {
+			host: host,
+			name: name,
+			lastCheck: lastCheck,
+			lastValue: lastValue,
+			change: change
+		};
+		
+		console.log('AI Integration: Extracted item data:', extracted);
+		return extracted;
+	}
     
     function showAnalysisModal(itemData) {
         const Core = window.AIIntegrationCore;
