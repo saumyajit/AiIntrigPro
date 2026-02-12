@@ -1,15 +1,38 @@
 {
     "manifest_version": 2.0,
-    "id": "statuspagepro",
-    "name": "Status Page Pro",
-    "version": "2.0.1",
-    "namespace": "StatusPage",
-    "description": "Enhanced Zabbix Status Page with interactive regional charts, top customer alert rankings, and filterable host group grid for enterprise monitoring.",
-    "author": "Saumyajit Pramanik",
+    "id": "AI-Integration",
+    "name": "Integrating AI with Zabbix",
+    "version": "2.0.0",
+    "author": "Saumyajit",
+    "namespace": "AIIntegration",
+    "url": "",
+    "description": "Integrate AI models with Zabbix monitoring workflows - Chat, Quick Actions, and Contextual Analysis",
     "actions": {
-        "status.page": {
-            "class": "StatusPageView",
-            "view": "statuspage.view"
+        "aiintegration.config": {
+            "class": "CControllerAIConfig",
+            "view": "aiintegration.config"
+        },
+        "aiintegration.collab": {
+            "class": "CControllerAICollab",
+            "view": "aiintegration.collab"
+        },
+        "aiintegration.providers": {
+            "class": "CControllerAIProviders"
+        },
+        "aiintegration.query": {
+            "class": "CControllerAIQuery"
         }
+    },
+    "assets": {
+        "css": [
+            "aiintegration.css"
+        ],
+        "js": [
+            "aiintegration-core.js",
+            "aiintegration-init.js",
+            "aiintegration-problems.js",
+            "aiintegration-latestdata.js",
+            "aiintegration-forms.js"
+        ]
     }
 }
