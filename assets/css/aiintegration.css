@@ -251,6 +251,7 @@
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     border: none;
+    padding: 0px 10px;
 }
 
 .aiintegration-btn-primary:hover {
