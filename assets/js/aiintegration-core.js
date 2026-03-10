@@ -108,7 +108,7 @@ window.AIIntegrationCore = (function() {
                     const btn = document.createElement('button');
                     btn.textContent = action.label;
                     btn.className = action.className || 'aiintegration-btn';
-                    btn.style.cssText = 'padding:10px 20px;border:none;border-radius:6px;cursor:pointer;font-size:14px;';
+                    btn.style.cssText = 'padding:0px 0px;border:none;border-radius:6px;cursor:pointer;font-size:14px;';
                     if (action.className && action.className.includes('primary')) {
                         btn.style.background = 'linear-gradient(135deg,#667eea 0%,#764ba2 100%)';
                         btn.style.color = 'white';
