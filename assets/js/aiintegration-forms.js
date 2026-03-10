@@ -151,7 +151,7 @@
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.textContent = '📊 Analyze Item';
-        btn.style.cssText = 'padding:6px 14px;background:white;border:1px solid #d1d5db;' +
+        btn.style.cssText = 'padding:0px 8px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border:1px solid #d1d5db;' +
             'border-radius:4px;cursor:pointer;font-size:13px;transition:all 0.2s;';
         btn.addEventListener('click', () => showItemAnalysisModal(dialog, settings));
         bar.appendChild(btn);
