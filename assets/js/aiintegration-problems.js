@@ -577,7 +577,7 @@
 			const summaryHtml = `
 				<table class="aiintegration-summary-table">
 					<tr><td>Event ID</td><td>${core.escapeHtml(enrichedContext.event.eventid)}</td></tr>
-					<tr><td>Problem</td><td>${core.escapeHtml(enrichedContext.event.name)}</td></tr>
+					<tr><td>Alert Name</td><td>${core.escapeHtml(enrichedContext.event.name)}</td></tr>
 					<tr><td>Severity</td><td>${core.escapeHtml(enrichedContext.event.severity)}</td></tr>
 					<tr><td>Host</td><td>${core.escapeHtml(enrichedContext.host?.name || 'N/A')}</td></tr>
 					<tr><td>Time</td><td>${core.escapeHtml(enrichedContext.event.clock)}</td></tr>
