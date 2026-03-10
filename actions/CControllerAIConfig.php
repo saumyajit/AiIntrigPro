@@ -15,15 +15,24 @@ class CControllerAIConfig extends CController {
 
 	protected function checkInput(): bool {
 		$fields = [
-			'provider' => 'string',
-			'api_endpoint' => 'string',
-			'api_key' => 'string',
-			'default_model' => 'string',
-			'temperature' => 'string',
-			'max_tokens' => 'string',
-			'save' => 'in 1',
-			'test' => 'in 1',
-			'debug' => 'in 1'
+			// Only static/known fields declared here.
+			// Dynamic provider fields ({provider}_{field}) are read directly from
+			// $_POST in doAction() — so adding a new provider needs zero changes here.
+			'provider'         => 'string',
+			'default_provider' => 'string',
+			'qa_problems'      => 'string',
+			'qa_items'         => 'string',
+			'qa_triggers'      => 'string',
+			'qa_hosts'         => 'string',
+			// Generic fields for the Test Connection action
+			'api_endpoint'     => 'string',
+			'api_key'          => 'string',
+			'default_model'    => 'string',
+			'temperature'      => 'string',
+			'max_tokens'       => 'string',
+			'save'             => 'in 1',
+			'test'             => 'in 1',
+			'debug'            => 'in 1',
 		];
 
 		$ret = $this->validateInput($fields);
@@ -75,20 +84,40 @@ class CControllerAIConfig extends CController {
 
 		// Handle SAVE
 		if ($this->hasInput('save')) {
-			$provider = $this->getInput('provider', 'openai');
-			
-			$config[$provider] = [
-				'api_endpoint' => $this->getInput('api_endpoint', ''),
-				'api_key' => $this->getInput('api_key', ''),
-				'default_model' => $this->getInput('default_model', ''),
-				'temperature' => $this->getInput('temperature', '0.7'),
-				'max_tokens' => $this->getInput('max_tokens', '1000')
+			$providers = ['openai', 'github', 'anthropic', 'gemini', 'deepseek', 'mistral', 'groq', 'custom'];
+
+			// Read every provider's fields from $_POST by prefixed name.
+			// $_POST is NOT modified by validateInput() so this is always safe.
+			// New providers only need adding to $providers above — nothing else.
+			foreach ($providers as $p) {
+				$get = static function (string $key, string $default = '') use ($p): string {
+					$v = $_POST[$p . '_' . $key] ?? null;
+					return $v !== null ? trim(strip_tags((string) $v)) : $default;
+				};
+				$config[$p] = [
+					'api_endpoint'  => $get('api_endpoint',  $config[$p]['api_endpoint']  ?? ''),
+					'api_key'       => $get('api_key',       $config[$p]['api_key']       ?? ''),
+					'default_model' => $get('default_model', $config[$p]['default_model'] ?? ''),
+					'temperature'   => $get('temperature',   $config[$p]['temperature']   ?? '0.7'),
+					'max_tokens'    => $get('max_tokens',    $config[$p]['max_tokens']    ?? '1000'),
+					'enabled'       => (($_POST[$p . '_enabled'] ?? '0') === '1'),
+				];
+			}
+
+			// General settings
+			$config['default_provider'] = trim(strip_tags((string) ($_POST['default_provider'] ?? $config['default_provider'] ?? 'openai')));
+			$config['quick_actions'] = [
+				'problems' => (($_POST['qa_problems'] ?? '0') === '1'),
+				'items'    => (($_POST['qa_items']    ?? '0') === '1'),
+				'triggers' => (($_POST['qa_triggers'] ?? '0') === '1'),
+				'hosts'    => (($_POST['qa_hosts']    ?? '0') === '1'),
 			];
-			
+
 			// Save to file
 			$saved = ConfigStorage::save($config);
-			
+
 			// Debug logging
+			// error_log("AI Integration Save - All providers, Success: " . ($saved ? 'yes' : 'no'));
 			error_log("AI Integration Save - Provider: $provider, Success: " . ($saved ? 'yes' : 'no'));
 			
 			// Return JSON response
