@@ -415,9 +415,9 @@ function createGeneralSettingsTab($config) {
     $quick_actions_section = (new CDiv())
         ->addClass('general-settings-section');
     
-    $quick_actions_section->addItem(new CTag('h3', true, _('Quick Actions')));
+    $quick_actions_section->addItem(new CTag('h3', true, _('Enable AI Analysis')));
     
-    $description = (new CDiv(_('Enable AI-powered quick actions on monitoring pages. These add contextual AI analysis buttons to Problems, Latest Data, Triggers, and Hosts.')))
+    $description = (new CDiv(_('Enable AI-driven insights that analyze monitoring data, identify anomalies, interpret trends, and assist with real-time troubleshooting and faster diagnostics.')))
         ->addClass('general-settings-description');
     
     $quick_actions_section->addItem($description);
