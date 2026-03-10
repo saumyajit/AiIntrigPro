@@ -376,7 +376,7 @@ function createGeneralSettingsTab($config) {
         ->addClass('ai-info-box')
         ->addItem(new CTag('strong', true, '⚙️ ' . _('General Settings')))
         ->addItem(new CTag('br'))
-        ->addItem(_('Configure default AI provider and enable/disable Quick Actions on monitoring pages'));
+        ->addItem(_('Configure default AI provider and enable/disable AI Analysis on on various functions'));
     
     $container->addItem($info_box);
     
@@ -384,7 +384,7 @@ function createGeneralSettingsTab($config) {
     $default_provider_section = (new CDiv())
         ->addClass('general-settings-section');
     
-    $default_provider_section->addItem(new CTag('h3', true, _('Default AI Provider')));
+    $default_provider_section->addItem(new CTag('h3', true, _('Default AI Provider Settings')));
     
     // Create CSelect with proper CSelectOption objects
     $provider_select = new CSelect('default_provider');
