@@ -2,7 +2,7 @@
     "manifest_version": 2.0,
     "id": "AI-Integration",
     "name": "Integrating AI with Zabbix",
-    "version": "2.0.0",
+    "version": "2.1.1",
     "author": "Saumyajit",
     "namespace": "AIIntegration",
     "url": "",
