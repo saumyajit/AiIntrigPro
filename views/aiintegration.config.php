@@ -542,31 +542,26 @@ $page->addItem($form);
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('ai_config_form');
 
-    // Known provider tab IDs — these match the id="" on each tab panel div
-    const PROVIDER_TABS = ['openai', 'github', 'anthropic', 'gemini', 'deepseek', 'mistral', 'groq', 'custom'];
+    // Provider tab IDs — must match the id="" Zabbix renders on each tab panel.
+    // To add a provider: add it here AND in the PHP $providers array. That's it.
+    const PROVIDERS = ['openai', 'github', 'anthropic', 'gemini', 'deepseek', 'mistral', 'groq', 'custom'];
 
     /**
-     * Find which provider tab is currently active.
-     *
-     * Zabbix CTabView uses jQuery UI tabs which shows/hides <div> panels by
-     * toggling display:none. The URL hash is NOT updated on tab click, so we
-     * cannot rely on window.location.hash. Instead we look for the visible panel.
-     *
-     * Returns the provider string (e.g. 'github') or null if general tab is active.
+     * Return the currently visible provider panel ID, or null if General tab.
+     * Zabbix CTabView (jQuery UI) hides inactive panels with display:none —
+     * we find the one that is currently visible.
      */
     function getActiveProvider() {
-        for (var i = 0; i < PROVIDER_TABS.length; i++) {
-            var panel = document.getElementById(PROVIDER_TABS[i]);
+        for (var i = 0; i < PROVIDERS.length; i++) {
+            var panel = document.getElementById(PROVIDERS[i]);
             if (panel && panel.style.display !== 'none' && panel.offsetParent !== null) {
-                return PROVIDER_TABS[i];
+                return PROVIDERS[i];
             }
         }
-        return null; // general tab or unknown
+        return null;
     }
 
-    // ── Save & Test handlers ──────────────────────────────────────────────────
-
-    // Handle Save - submit entire form
+    // Handle Save
     form.addEventListener('submit', function(e) {
         e.preventDefault();
         saveAllConfig();
@@ -581,24 +576,39 @@ document.addEventListener('DOMContentLoaded', function() {
             if (provider) {
                 testConnection(provider);
             } else {
-                showMessage('Please navigate to a provider tab (OpenAI, GitHub, Anthropic, etc.) before testing.', 'warning');
+                showMessage('Please navigate to a provider tab (OpenAI, GitHub, Anthropic…) before testing.', 'warning');
             }
         });
     }
-    
-    // Save ALL configuration at once
+
+    // Collect ALL provider fields by their real names and POST everything at once.
+    // PHP reads $_POST['{provider}_{field}'] directly, so this works for any number
+    // of providers — just add the name to PROVIDERS above.
     function saveAllConfig() {
-        const formData = new FormData(form);
         const params = new URLSearchParams();
-        
-        for (const [key, value] of formData.entries()) {
-            params.append(key, value);
-        }
-        
+
+        PROVIDERS.forEach(function(p) {
+            ['api_endpoint', 'api_key', 'default_model', 'temperature', 'max_tokens'].forEach(function(field) {
+                var el = document.getElementById(p + '_' + field);
+                params.append(p + '_' + field, el ? el.value : '');
+            });
+            var enabledEl = document.getElementById(p + '_enabled');
+            params.append(p + '_enabled', (enabledEl && enabledEl.checked) ? '1' : '0');
+        });
+
+        // General settings
+        var defaultProviderEl = document.querySelector('[name="default_provider"]');
+        params.append('default_provider', defaultProviderEl ? defaultProviderEl.value : 'openai');
+
+        ['problems', 'items', 'triggers', 'hosts'].forEach(function(k) {
+            var el = document.getElementById('qa_' + k);
+            params.append('qa_' + k, (el && el.checked) ? '1' : '0');
+        });
+
         params.append('save', '1');
-        
+
         showMessage('Saving...', 'info');
-        
+
         fetch('zabbix.php?action=aiintegration.config', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -608,11 +618,6 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 showMessage(data.message, 'success');
-                // Reload with hash to restore tab
-                setTimeout(() => {
-                    window.location.href = 'zabbix.php?action=aiintegration.config#' + getActiveTab();
-                    window.location.reload();
-                }, 1500);
             } else {
                 showMessage(data.message || 'Save failed', 'error');
             }
@@ -621,16 +626,16 @@ document.addEventListener('DOMContentLoaded', function() {
             showMessage('Network error: ' + error.message, 'error');
         });
     }
-    
+
     function testConnection(provider) {
         const endpoint = document.getElementById(provider + '_api_endpoint')?.value || '';
-        const apiKey = document.getElementById(provider + '_api_key')?.value || '';
-        
+        const apiKey   = document.getElementById(provider + '_api_key')?.value || '';
+
         if (!apiKey) {
             showMessage('Please enter an API key first', 'error');
             return;
         }
-        
+
         const model = document.getElementById(provider + '_default_model')?.value || '';
 
         const formData = new URLSearchParams();
