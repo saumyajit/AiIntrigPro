@@ -1,6 +1,5 @@
 /**
  * AI Integration Core Library
- * SIMPLIFIED VERSION
  */
 window.AIIntegrationCore = (function() {
     'use strict';
@@ -29,7 +28,7 @@ window.AIIntegrationCore = (function() {
                 console.error('AI Integration: Failed to load settings', error);
                 // Return defaults
                 return {
-                    providers: [{id: 'github', name: 'GitHub Models'}],
+                    providers: [{name: 'github', model: 'gpt-4o-mini'}],
                     default_provider: 'github',
                     quick_actions: {problems: true, items: true, triggers: true, hosts: true}
                 };
@@ -152,11 +151,113 @@ window.AIIntegrationCore = (function() {
         return div.innerHTML;
     }
     
+    /**
+     * Render AI response text with basic Markdown formatting.
+     * Handles: code blocks, inline code, headers, bold, italic, lists, line breaks.
+     * Does NOT require any external library.
+     *
+     * @param {string} text - Raw AI response text
+     * @returns {string} - Safe HTML string
+     */
+    function renderText(text) {
+        if (!text) return '';
+
+        // ── Step 1: split out fenced code blocks so we don't mangle them ──
+        const segments = [];
+        const codeBlockRe = /```(\w*)\n?([\s\S]*?)```/g;
+        let last = 0;
+        let m;
+
+        while ((m = codeBlockRe.exec(text)) !== null) {
+            if (m.index > last) {
+                segments.push({ type: 'text', raw: text.slice(last, m.index) });
+            }
+            segments.push({ type: 'code', lang: m[1] || 'text', raw: m[2].trim() });
+            last = m.index + m[0].length;
+        }
+        if (last < text.length) {
+            segments.push({ type: 'text', raw: text.slice(last) });
+        }
+        if (segments.length === 0) {
+            segments.push({ type: 'text', raw: text });
+        }
+
+        // ── Step 2: render each segment ──
+        let html = '';
+
+        segments.forEach(seg => {
+            if (seg.type === 'code') {
+                html += '<pre style="background:#1e293b;color:#e2e8f0;padding:12px 16px;border-radius:6px;'
+                      + 'overflow-x:auto;margin:8px 0;font-size:13px;line-height:1.5;">'
+                      + '<code>' + escapeHtml(seg.raw) + '</code></pre>';
+                return;
+            }
+
+            // Inline escaping (HTML-safe) then markdown transforms
+            let t = seg.raw;
+
+            // Escape HTML in text portions
+            t = t.replace(/&/g, '&amp;')
+                 .replace(/</g, '&lt;')
+                 .replace(/>/g, '&gt;');
+
+            // Inline code (`…`)
+            t = t.replace(/`([^`\n]+)`/g,
+                '<code style="background:rgba(0,0,0,0.07);padding:2px 5px;border-radius:3px;'
+                + 'font-family:monospace;font-size:0.9em;">$1</code>');
+
+            // ATX Headers (###, ##, #)
+            t = t.replace(/^### (.+)$/gm,
+                '<h4 style="margin:10px 0 4px;font-size:14px;font-weight:700;color:#374151;">$1</h4>');
+            t = t.replace(/^## (.+)$/gm,
+                '<h3 style="margin:12px 0 6px;font-size:15px;font-weight:700;color:#1f2937;">$1</h3>');
+            t = t.replace(/^# (.+)$/gm,
+                '<h2 style="margin:14px 0 6px;font-size:16px;font-weight:700;color:#111827;">$1</h2>');
+
+            // Bold + italic (***…***)
+            t = t.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+            // Bold (**…**)
+            t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            // Italic (*…*)
+            t = t.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+            // Unordered lists (lines starting with "- " or "* ")
+            t = t.replace(/((?:^[ \t]*[-*] .+(?:\n|$))+)/gm, (block) => {
+                const items = block
+                    .split('\n')
+                    .filter(l => l.trim())
+                    .map(l => '<li style="margin:3px 0;">' + l.replace(/^[ \t]*[-*] /, '') + '</li>')
+                    .join('');
+                return '<ul style="margin:6px 0;padding-left:20px;">' + items + '</ul>';
+            });
+
+            // Ordered lists (lines starting with "1. ", "2. " …)
+            t = t.replace(/((?:^[ \t]*\d+\. .+(?:\n|$))+)/gm, (block) => {
+                const items = block
+                    .split('\n')
+                    .filter(l => l.trim())
+                    .map(l => '<li style="margin:3px 0;">' + l.replace(/^[ \t]*\d+\. /, '') + '</li>')
+                    .join('');
+                return '<ol style="margin:6px 0;padding-left:20px;">' + items + '</ol>';
+            });
+
+            // Paragraph breaks (double newline)
+            t = t.replace(/\n{2,}/g, '</p><p style="margin:6px 0;">');
+            // Single line breaks
+            t = t.replace(/\n/g, '<br>');
+
+            html += '<p style="margin:4px 0;">' + t + '</p>';
+        });
+
+        return html;
+    }
+    
     return {
         loadSettings,
         callAI,
         openModal,
-        escapeHtml
+        escapeHtml,
+        renderText
     };
 })();
 
