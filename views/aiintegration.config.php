@@ -415,9 +415,9 @@ function createGeneralSettingsTab($config) {
     $quick_actions_section = (new CDiv())
         ->addClass('general-settings-section');
     
-    $quick_actions_section->addItem(new CTag('h3', true, _('Quick Actions')));
+    $quick_actions_section->addItem(new CTag('h3', true, _('Enable AI Analysis')));
     
-    $description = (new CDiv(_('Enable AI-powered quick actions on monitoring pages. These add contextual AI analysis buttons to Problems, Latest Data, Triggers, and Hosts.')))
+    $description = (new CDiv(_('Enable AI-driven insights that analyze monitoring data, identify anomalies, interpret trends, and assist with real-time troubleshooting and faster diagnostics.')))
         ->addClass('general-settings-description');
     
     $quick_actions_section->addItem($description);
@@ -541,61 +541,28 @@ $page->addItem($form);
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('ai_config_form');
-    // ── Tab tracking ──────────────────────────────────────────────────────────
-    // Zabbix 7.x CTabView uses <a> tags (not <button> with data-target),
-    // so we track the active tab via URL hash changes instead of button clicks.
 
-    let currentTab = 'general';
+    // Known provider tab IDs — these match the id="" on each tab panel div
+    const PROVIDER_TABS = ['openai', 'github', 'anthropic', 'gemini', 'deepseek', 'mistral', 'groq', 'custom'];
 
     /**
-     * Derive the active provider tab from the page state.
-     * Priority: URL hash → localStorage → 'general'
+     * Find which provider tab is currently active.
+     *
+     * Zabbix CTabView uses jQuery UI tabs which shows/hides <div> panels by
+     * toggling display:none. The URL hash is NOT updated on tab click, so we
+     * cannot rely on window.location.hash. Instead we look for the visible panel.
+     *
+     * Returns the provider string (e.g. 'github') or null if general tab is active.
      */
-    function getActiveTab() {
-        const hash = window.location.hash.replace('#', '').trim();
-        if (hash) return hash;
-        return localStorage.getItem('ai_config_active_tab') || 'general';
-    }
-
-    // Keep currentTab in sync whenever the hash changes (tab clicks update the hash)
-    window.addEventListener('hashchange', function() {
-        const tab = getActiveTab();
-        if (tab) {
-            currentTab = tab;
-            localStorage.setItem('ai_config_active_tab', tab);
-        }
-    });
-
-    // Also intercept clicks on any tab link that sets the hash
-    document.querySelectorAll('.tabs-nav a, .tabs-nav button, .tabs-nav li').forEach(function(el) {
-        el.addEventListener('click', function() {
-            // Allow a brief moment for the hash to update
-            setTimeout(function() {
-                const tab = getActiveTab();
-                if (tab) {
-                    currentTab = tab;
-                    localStorage.setItem('ai_config_active_tab', tab);
-                }
-            }, 50);
-        });
-    });
-
-    // Restore last active tab on page load
-    (function() {
-        const savedTab = getActiveTab();
-        if (savedTab && savedTab !== 'general') {
-            currentTab = savedTab;
-            // Try to activate the matching tab via Zabbix's own mechanism
-            const tabLink = document.querySelector(
-                '.tabs-nav a[href="#' + savedTab + '"], ' +
-                '.tabs-nav button[data-id="' + savedTab + '"], ' +
-                '.tabs-nav [data-target="' + savedTab + '"]'
-            );
-            if (tabLink) {
-                setTimeout(function() { tabLink.click(); }, 100);
+    function getActiveProvider() {
+        for (var i = 0; i < PROVIDER_TABS.length; i++) {
+            var panel = document.getElementById(PROVIDER_TABS[i]);
+            if (panel && panel.style.display !== 'none' && panel.offsetParent !== null) {
+                return PROVIDER_TABS[i];
             }
         }
-    })();
+        return null; // general tab or unknown
+    }
 
     // ── Save & Test handlers ──────────────────────────────────────────────────
 
@@ -610,12 +577,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (testBtn) {
         testBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            // Re-read active tab at click time in case hashchange hasn't fired yet
-            const tab = getActiveTab();
-            if (tab && tab !== 'general') {
-                testConnection(tab);
+            var provider = getActiveProvider();
+            if (provider) {
+                testConnection(provider);
             } else {
-                showMessage('<?php echo _('Please select a provider tab (e.g. OpenAI, Anthropic) before testing'); ?>', 'warning');
+                showMessage('Please navigate to a provider tab (OpenAI, GitHub, Anthropic, etc.) before testing.', 'warning');
             }
         });
     }
@@ -665,10 +631,13 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        const model = document.getElementById(provider + '_default_model')?.value || '';
+
         const formData = new URLSearchParams();
         formData.append('provider', provider);
         formData.append('api_endpoint', endpoint);
         formData.append('api_key', apiKey);
+        formData.append('default_model', model);
         formData.append('test', '1');
         
         showMessage('Testing connection...', 'info');
