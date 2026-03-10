@@ -1,10 +1,16 @@
 /**
  * AI Integration - Latest Data Page Enhancement
- * Enhanced: Zabbix API history/trends, statistical analysis, z-score anomaly detection,
- *           Super Admin context panel
+ * Runs ONLY on action=latest.view to prevent bleeding onto Problems / Host Search.
+ * Per-row sparkle buttons with Zabbix-API-backed z-score anomaly detection.
  */
 (function() {
     'use strict';
+
+    // ── Guard: abort immediately on any page that is NOT Latest Data ──────────
+    function isLatestDataPage() {
+        return window.location.href.includes('action=latest.view') ||
+               document.querySelector('[data-page="latest"]') !== null;
+    }
 
     let settings = null;
     let injectionAttempts = 0;
@@ -19,12 +25,17 @@
     }
 
     function init() {
+        // Hard stop — do NOT set up observers on other pages
+        if (!isLatestDataPage()) {
+            return;
+        }
+
         const Core = window.AIIntegrationCore;
 
         Core.loadSettings().then(loadedSettings => {
             settings = loadedSettings;
 
-            if (!settings.quick_actions.items) {
+            if (!settings.quick_actions || !settings.quick_actions.items) {
                 console.log('AI Integration: Latest Data quick actions disabled');
                 return;
             }
@@ -35,63 +46,53 @@
             }
 
             console.log('AI Integration: Latest Data page initialized');
-
             injectLatestDataButtons();
 
+            // Watch for table refresh (Zabbix auto-refresh replaces tbody)
             const observer = new MutationObserver(() => {
                 if (injectionAttempts < MAX_ATTEMPTS) {
                     setTimeout(injectLatestDataButtons, 500);
                 }
             });
-
             observer.observe(document.body, { childList: true, subtree: true });
         });
     }
 
+    // ── Table injection ───────────────────────────────────────────────────────
+
     function injectLatestDataButtons() {
         const table = document.querySelector('table.list-table.compact-view') ||
             Array.from(document.querySelectorAll('table.list-table')).find(t => {
-                const firstRow = t.querySelector('tbody tr');
-                return firstRow && firstRow.querySelectorAll('td').length > 5;
+                if (t.closest('.filter-forms') || t.closest('.filter-container')) return false;
+                const r = t.querySelector('tbody tr');
+                return r && r.querySelectorAll('td').length > 5;
             });
 
-        if (!table) {
-            console.log('AI Integration: Latest Data table not found');
-            return;
-        }
-
-        if (table.closest('.filter-forms') || table.closest('.filter-container')) {
-            console.log('AI Integration: Skipping filter table');
-            return;
-        }
+        if (!table) return;
+        if (table.closest('.filter-forms') || table.closest('.filter-container')) return;
 
         const tbody = table.querySelector('tbody');
         if (!tbody) return;
 
-        // Add header
+        // Add "IA" header column once
         const thead = table.querySelector('thead tr');
         if (thead && !thead.querySelector('.aiintegration-header')) {
             const th = document.createElement('th');
             th.className = 'aiintegration-header';
             th.textContent = 'IA';
-            th.style.width = '50px';
-            th.style.textAlign = 'center';
+            th.style.cssText = 'width:50px;text-align:center;';
             thead.appendChild(th);
         }
 
-        // Add buttons to rows
-        const rows = tbody.querySelectorAll('tr');
         let injected = 0;
-
-        rows.forEach(row => {
+        tbody.querySelectorAll('tr').forEach(row => {
             if (row.querySelector('.aiintegration-sparkle-btn')) return;
 
             const td = document.createElement('td');
-            td.className = 'aiintegration-td';
-            td.style.textAlign = 'center';
+            td.style.cssText = 'text-align:center;vertical-align:middle;';
 
             const btn = createSparkleButton();
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', e => {
                 e.preventDefault();
                 e.stopPropagation();
                 handleItemAnalysis(row);
@@ -113,27 +114,38 @@
         btn.type = 'button';
         btn.className = 'aiintegration-sparkle-btn btn-icon';
         btn.title = 'Analyze with AI';
-        btn.style.cssText = 'background: none; border: none; cursor: pointer; padding: 4px;';
-        const uid = Date.now() + Math.random().toString(36).slice(2);
+        btn.style.cssText = 'background:none;border:none;cursor:pointer;padding:4px;transition:all 0.2s ease;display:inline-flex;align-items:center;justify-content:center;';
+
+        const uid = Date.now() + '_' + Math.random().toString(36).slice(2, 7);
         btn.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"
-                      fill="url(#sparkle-ld-${uid})" stroke="#a855f7" stroke-width="1.5"/>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <defs>
-                    <linearGradient id="sparkle-ld-${uid}" x1="2" y1="2" x2="22" y2="22">
-                        <stop offset="0%" style="stop-color:#a855f7;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#6366f1;stop-opacity:1" />
+                    <linearGradient id="spk${uid}" x1="2" y1="2" x2="22" y2="22">
+                        <stop offset="0%" style="stop-color:#a855f7"/>
+                        <stop offset="100%" style="stop-color:#6366f1"/>
                     </linearGradient>
                 </defs>
+                <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"
+                      fill="url(#spk${uid})" stroke="#a855f7" stroke-width="1.5"/>
             </svg>`;
+
+        btn.addEventListener('mouseenter', () => {
+            btn.style.transform = 'scale(1.2)';
+            const svg = btn.querySelector('svg');
+            if (svg) svg.style.filter = 'drop-shadow(0 0 6px #a855f7)';
+        });
+        btn.addEventListener('mouseleave', () => {
+            btn.style.transform = 'scale(1)';
+            const svg = btn.querySelector('svg');
+            if (svg) svg.style.filter = '';
+        });
+
         return btn;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Zabbix API helpers
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Zabbix API helpers ────────────────────────────────────────────────────
 
-    function callZabbixApi(method, params) {
+    function zabbixApi(method, params) {
         return fetch('api_jsonrpc.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json-rpc' },
@@ -146,141 +158,109 @@
     }
 
     /**
-     * Fetch the last `limit` raw history values for an item.
-     * Tries value_type 0 (float) first, then 3 (text) as fallback.
+     * Fetch up to `limit` history values.
+     * Tries history type 0 (float), falls back to 3 (text / string).
      */
-    function fetchItemHistory(itemid, limit) {
+    function fetchHistory(itemid, limit) {
         limit = limit || 100;
-        // Try numeric history first
-        return callZabbixApi('history.get', {
-            itemids: [itemid],
-            history: 0,          // float
-            sortfield: 'clock',
-            sortorder: 'DESC',
-            limit: limit,
-            output: 'extend'
-        }).then(result => {
-            if (result && result.length > 0) return { values: result, valueType: 0 };
-            // Fallback: integer history
-            return callZabbixApi('history.get', {
-                itemids: [itemid],
-                history: 3,      // text
-                sortfield: 'clock',
-                sortorder: 'DESC',
-                limit: limit,
-                output: 'extend'
-            }).then(r2 => ({ values: r2 || [], valueType: 3 }));
+        return zabbixApi('history.get', {
+            itemids: [itemid], history: 0,
+            sortfield: 'clock', sortorder: 'DESC',
+            limit, output: 'extend'
+        }).then(r => {
+            if (r && r.length > 0) return { values: r, type: 'float' };
+            return zabbixApi('history.get', {
+                itemids: [itemid], history: 3,
+                sortfield: 'clock', sortorder: 'DESC',
+                limit, output: 'extend'
+            }).then(r2 => ({ values: r2 || [], type: 'text' }));
         });
     }
 
-    /**
-     * Fetch hourly trend data for the last 30 days.
-     */
-    function fetchItemTrends(itemid) {
-        const thirtyDaysAgo = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
-        return callZabbixApi('trend.get', {
-            itemids: [itemid],
-            time_from: thirtyDaysAgo,
+    /** Fetch hourly trend data for the last 30 days. */
+    function fetchTrends(itemid) {
+        const from = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
+        return zabbixApi('trend.get', {
+            itemids: [itemid], time_from: from,
             output: ['clock', 'num', 'value_min', 'value_avg', 'value_max'],
-            limit: 720  // up to 720 hourly points = 30 days
+            limit: 720
         });
     }
 
-    /**
-     * Fetch item metadata (name, key_, units, value_type, itemid).
-     */
+    /** Fetch item metadata. */
     function fetchItemMeta(itemid) {
-        return callZabbixApi('item.get', {
+        return zabbixApi('item.get', {
             itemids: [itemid],
-            output: ['itemid', 'name', 'key_', 'units', 'value_type', 'lastvalue', 'lastclock', 'state', 'status']
+            output: ['itemid', 'name', 'key_', 'units', 'value_type', 'lastvalue', 'lastclock']
         }).then(r => (r && r.length > 0 ? r[0] : null));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Statistical analysis
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Statistical / anomaly analysis ───────────────────────────────────────
 
-    /**
-     * Compute mean, stddev, min, max, z-score of the current value,
-     * and an anomaly flag.
-     */
-    function computeStatistics(historyValues, currentValue) {
-        const nums = historyValues
-            .map(h => parseFloat(h.value))
-            .filter(v => !isNaN(v));
-
-        if (nums.length === 0) {
-            return { count: 0, mean: null, stddev: null, min: null, max: null, zscore: null, isAnomaly: false };
+    function computeStats(histValues, currentValue) {
+        const nums = (histValues || []).map(h => parseFloat(h.value)).filter(v => !isNaN(v));
+        if (nums.length < 3) {
+            return { count: nums.length, mean: null, stddev: null,
+                     min: null, max: null, zscore: null,
+                     isAnomaly: false, anomalyLevel: null };
         }
 
-        const n = nums.length;
+        const n    = nums.length;
         const mean = nums.reduce((a, b) => a + b, 0) / n;
-        const variance = nums.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / n;
-        const stddev = Math.sqrt(variance);
-        const min = Math.min(...nums);
-        const max = Math.max(...nums);
+        const vari = nums.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / n;
+        const std  = Math.sqrt(vari);
+        const min  = Math.min(...nums);
+        const max  = Math.max(...nums);
 
-        let zscore = null;
-        let isAnomaly = false;
         const cur = parseFloat(currentValue);
+        let zscore = null, isAnomaly = false, anomalyLevel = null;
 
-        if (!isNaN(cur) && stddev > 0) {
-            zscore = (cur - mean) / stddev;
-            isAnomaly = Math.abs(zscore) > 3; // 3-sigma rule
+        if (!isNaN(cur) && std > 0) {
+            zscore = round2((cur - mean) / std);
+            const absZ = Math.abs(zscore);
+            if      (absZ > 3)   { isAnomaly = true;  anomalyLevel = 'severe'; }
+            else if (absZ > 2.5) { isAnomaly = true;  anomalyLevel = 'significant'; }
+            else if (absZ > 2)   {                    anomalyLevel = 'mild'; }
         }
 
-        return {
-            count: n,
-            mean: round2(mean),
-            stddev: round2(stddev),
-            min: round2(min),
-            max: round2(max),
-            zscore: zscore !== null ? round2(zscore) : null,
-            isAnomaly
-        };
+        return { count: n, mean: round2(mean), stddev: round2(std),
+                 min: round2(min), max: round2(max),
+                 zscore, isAnomaly, anomalyLevel };
     }
 
     /**
-     * Derive trend direction from the last N hourly trend points.
-     * Returns: 'rising', 'falling', 'stable', or 'insufficient_data'
+     * Compare last 24h trend avg vs prior 24h to produce a direction string.
      */
     function analyzeTrend(trendPoints) {
-        if (!trendPoints || trendPoints.length < 6) return 'insufficient_data';
+        if (!trendPoints || trendPoints.length < 6) return null;
 
-        // Use last 24 points (24 hours) vs previous 24
         const recent = trendPoints.slice(-24).map(t => parseFloat(t.value_avg)).filter(v => !isNaN(v));
         const prior  = trendPoints.slice(-48, -24).map(t => parseFloat(t.value_avg)).filter(v => !isNaN(v));
 
-        if (recent.length === 0 || prior.length === 0) return 'insufficient_data';
+        if (!recent.length || !prior.length) return null;
 
-        const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
-        const priorAvg  = prior.reduce((a, b) => a + b, 0) / prior.length;
+        const avgR = recent.reduce((a, b) => a + b, 0) / recent.length;
+        const avgP = prior.reduce((a, b) => a + b, 0) / prior.length;
 
-        if (priorAvg === 0) return 'stable';
-        const changePct = ((recentAvg - priorAvg) / Math.abs(priorAvg)) * 100;
+        if (avgP === 0) return 'stable';
+        const pct = ((avgR - avgP) / Math.abs(avgP)) * 100;
 
-        if (changePct > 10)  return `rising (+${round2(changePct)}%)`;
-        if (changePct < -10) return `falling (${round2(changePct)}%)`;
-        return 'stable';
+        if (pct >  15) return `⬆ rising  (+${round2(pct)}% vs prior 24h)`;
+        if (pct < -15) return `⬇ falling (${round2(pct)}% vs prior 24h)`;
+        return '➡ stable';
     }
 
-    function round2(v) {
-        return Math.round(v * 100) / 100;
-    }
+    function round2(v) { return Math.round(v * 100) / 100; }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Data extraction from DOM row
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Extract row data from DOM ─────────────────────────────────────────────
 
-    function extractItemData(row) {
+    function extractRowData(row) {
         const cells = row.querySelectorAll('td');
 
-        // Try to get itemid from a graph/history link
         let itemid = null;
-        const links = row.querySelectorAll('a[href*="itemid="]');
-        links.forEach(link => {
+        row.querySelectorAll('a[href*="itemid="]').forEach(a => {
             if (!itemid) {
-                const m = link.href.match(/itemid=(\d+)/);
+                const m = a.href.match(/itemid=(\d+)/);
                 if (m) itemid = m[1];
             }
         });
@@ -288,172 +268,162 @@
         const hostLink = row.querySelector('a[href*="hostid"]');
 
         return {
-            itemid: itemid || '',
-            host: hostLink?.textContent?.trim() || '',
-            name: cells[1]?.textContent?.trim() || cells[0]?.textContent?.trim() || '',
-            lastCheck: cells[2]?.textContent?.trim() || '',
-            lastValue: cells[3]?.textContent?.trim() || '',
-            change: cells[4]?.textContent?.trim() || ''
+            itemid:    itemid || '',
+            host:      hostLink ? hostLink.textContent.trim() : '',
+            name:      cells[1] ? cells[1].textContent.trim() : (cells[0] ? cells[0].textContent.trim() : ''),
+            lastCheck: cells[2] ? cells[2].textContent.trim() : '',
+            lastValue: cells[3] ? cells[3].textContent.trim() : '',
+            change:    cells[4] ? cells[4].textContent.trim() : ''
         };
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Analysis handler
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Modal ─────────────────────────────────────────────────────────────────
 
-    function handleItemAnalysis(row) {
-        if (!settings) { alert('Settings not loaded'); return; }
-
-        const itemData = extractItemData(row);
-        console.log('AI Integration: Item data', itemData);
-        showAnalysisModal(itemData);
-    }
-
-    async function showAnalysisModal(itemData) {
+    async function handleItemAnalysis(row) {
+        if (!settings) { alert('AI settings not loaded yet.'); return; }
         const Core = window.AIIntegrationCore;
+        const rowData = extractRowData(row);
 
+        // Open modal with loading state immediately so the user sees feedback
         const content = document.createElement('div');
-
-        // ── Loading state ──
         content.innerHTML = `
-            <div style="text-align:center;padding:30px;color:#6b7280;">
-                <div style="font-size:24px;margin-bottom:8px;">⏳</div>
-                <div>Loading item data and statistics…</div>
+            <div style="text-align:center;padding:40px 20px;color:#6b7280;">
+                <div style="font-size:28px;margin-bottom:10px;">⏳</div>
+                <div>Fetching history &amp; computing statistics…</div>
+                ${rowData.itemid ? '' : '<div style="color:#f59e0b;margin-top:8px;font-size:12px;">⚠ Item ID not found — statistical analysis unavailable.</div>'}
             </div>`;
 
         const providerSelect = createProviderSelect();
         const modal = Core.openModal('📊 AI Item Analysis', content, [], { headerExtra: providerSelect });
 
-        // ── Fetch enriched context ──
-        let enrichedContext = {
-            item: itemData,
-            statistics: null,
-            trend: null,
-            recent_history: []
-        };
+        // Enrich context
+        let enriched = { item: rowData, statistics: null, trend: null, recentHistory: [] };
 
-        try {
-            let itemMeta = null;
-            if (itemData.itemid) {
+        if (rowData.itemid) {
+            try {
                 const [meta, histResult, trendData] = await Promise.all([
-                    fetchItemMeta(itemData.itemid),
-                    fetchItemHistory(itemData.itemid, 100),
-                    fetchItemTrends(itemData.itemid)
+                    fetchItemMeta(rowData.itemid),
+                    fetchHistory(rowData.itemid, 100),
+                    fetchTrends(rowData.itemid)
                 ]);
 
-                itemMeta = meta;
+                if (meta) {
+                    enriched.item = Object.assign({}, rowData, {
+                        key: meta.key_, units: meta.units, value_type: meta.value_type
+                    });
+                }
 
-                if (histResult && histResult.values && histResult.values.length > 0) {
-                    const stats = computeStatistics(histResult.values, itemData.lastValue);
-                    enrichedContext.statistics = stats;
-                    enrichedContext.recent_history = histResult.values.slice(0, 10).map(h => ({
+                if (histResult && histResult.values.length > 0) {
+                    enriched.statistics  = computeStats(histResult.values, rowData.lastValue);
+                    enriched.recentHistory = histResult.values.slice(0, 10).map(h => ({
                         time: new Date(parseInt(h.clock, 10) * 1000).toISOString(),
                         value: h.value
                     }));
                 }
 
                 if (trendData && trendData.length > 0) {
-                    enrichedContext.trend = {
+                    enriched.trend = {
                         direction: analyzeTrend(trendData),
-                        points_30d: trendData.length,
-                        latest_avg: trendData[trendData.length - 1]?.value_avg
+                        data_points_30d: trendData.length,
+                        latest_avg: trendData[trendData.length - 1]
+                            ? trendData[trendData.length - 1].value_avg
+                            : null
                     };
                 }
-
-                if (itemMeta) {
-                    enrichedContext.item = Object.assign({}, itemData, {
-                        key: itemMeta.key_,
-                        units: itemMeta.units,
-                        value_type: itemMeta.value_type
-                    });
-                }
+            } catch (e) {
+                console.warn('AI Integration: enrichment failed', e);
             }
-        } catch (e) {
-            console.warn('AI Integration: Could not load enriched context', e);
         }
 
-        // ── Build modal content ──
+        // Build content
         content.innerHTML = '';
 
+        const s = enriched.statistics;
+
+        // Anomaly badge
+        let anomalyHtml = '';
+        if (s) {
+            if (s.anomalyLevel === 'severe') {
+                anomalyHtml = `<span style="background:#fef2f2;color:#991b1b;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700;margin-left:6px;">🚨 ANOMALY z=${s.zscore}</span>`;
+            } else if (s.anomalyLevel === 'significant') {
+                anomalyHtml = `<span style="background:#fff7ed;color:#9a3412;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700;margin-left:6px;">⚠ HIGH z=${s.zscore}</span>`;
+            } else if (s.anomalyLevel === 'mild') {
+                anomalyHtml = `<span style="background:#fffbeb;color:#92400e;padding:3px 10px;border-radius:10px;font-size:12px;margin-left:6px;">⚡ ELEVATED z=${s.zscore}</span>`;
+            } else if (s.zscore !== null) {
+                anomalyHtml = `<span style="background:#f0fdf4;color:#166534;padding:3px 10px;border-radius:10px;font-size:12px;margin-left:6px;">✓ Normal z=${s.zscore}</span>`;
+            }
+        }
+
         // Summary table
-        const stats = enrichedContext.statistics;
-        const anomalyBadge = stats && stats.isAnomaly
-            ? '<span style="background:#fef2f2;color:#b91c1c;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;">⚠ ANOMALY (z=' + stats.zscore + ')</span>'
-            : (stats && stats.zscore !== null
-                ? '<span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:10px;font-size:12px;">✓ Normal (z=' + stats.zscore + ')</span>'
+        const tbl = document.createElement('table');
+        tbl.className = 'aiintegration-summary-table';
+        tbl.innerHTML =
+            `<tr><td>Host</td><td>${Core.escapeHtml(rowData.host  || 'N/A')}</td></tr>` +
+            `<tr><td>Item</td><td>${Core.escapeHtml(rowData.name  || 'N/A')}</td></tr>` +
+            `<tr><td>Last Value</td><td>${Core.escapeHtml(rowData.lastValue || 'N/A')}${anomalyHtml}</td></tr>` +
+            `<tr><td>Last Check</td><td>${Core.escapeHtml(rowData.lastCheck || 'N/A')}</td></tr>` +
+            (s && s.count >= 3
+                ? `<tr><td>Samples</td><td>${s.count}</td></tr>` +
+                  `<tr><td>Mean ± StdDev</td><td>${s.mean} ± ${s.stddev}</td></tr>` +
+                  `<tr><td>Range</td><td>${s.min} – ${s.max}</td></tr>`
+                : '') +
+            (enriched.trend && enriched.trend.direction
+                ? `<tr><td>30d Trend</td><td>${Core.escapeHtml(enriched.trend.direction)}</td></tr>`
                 : '');
+        content.appendChild(tbl);
 
-        const summaryTable = document.createElement('table');
-        summaryTable.className = 'aiintegration-summary-table';
-        summaryTable.innerHTML = `
-            <tr><td>Host:</td><td>${Core.escapeHtml(itemData.host || 'N/A')}</td></tr>
-            <tr><td>Item:</td><td>${Core.escapeHtml(itemData.name || 'N/A')}</td></tr>
-            <tr><td>Last Value:</td><td>${Core.escapeHtml(itemData.lastValue || 'N/A')} ${anomalyBadge}</td></tr>
-            <tr><td>Last Check:</td><td>${Core.escapeHtml(itemData.lastCheck || 'N/A')}</td></tr>
-            ${stats && stats.count > 0 ? `
-            <tr><td>Mean (${stats.count} pts):</td><td>${stats.mean}</td></tr>
-            <tr><td>Std Deviation:</td><td>${stats.stddev}</td></tr>
-            <tr><td>Range:</td><td>${stats.min} – ${stats.max}</td></tr>
-            ` : ''}
-            ${enrichedContext.trend ? `<tr><td>30d Trend:</td><td>${Core.escapeHtml(enrichedContext.trend.direction)}</td></tr>` : ''}
-        `;
-        content.appendChild(summaryTable);
+        // Question field
+        const qField = document.createElement('div');
+        qField.className = 'aiintegration-field';
+        qField.innerHTML = '<label>Ask AI:</label>';
+        const qArea = document.createElement('textarea');
+        qArea.id = 'ld_question';
+        qArea.rows = 4;
+        qArea.style.cssText = 'width:100%;box-sizing:border-box;';
+        qArea.value = buildDefaultQuestion(rowData, enriched);
+        qField.appendChild(qArea);
+        content.appendChild(qField);
 
-        // Default question
-        const defaultQuestion = buildDefaultQuestion(itemData, enrichedContext);
-        const questionField = document.createElement('div');
-        questionField.className = 'aiintegration-field';
-        questionField.innerHTML = '<label>Ask AI:</label>';
-        const questionTextarea = document.createElement('textarea');
-        questionTextarea.id = 'ai_question';
-        questionTextarea.rows = 4;
-        questionTextarea.style.width = '100%';
-        questionTextarea.style.boxSizing = 'border-box';
-        questionTextarea.value = defaultQuestion;
-        questionField.appendChild(questionTextarea);
-        content.appendChild(questionField);
-
-        // Super Admin context editor
+        // Super Admin context panel
         if (settings.is_super_admin) {
-            const details = document.createElement('details');
-            details.className = 'aiintegration-context-toggle';
-            const summary = document.createElement('summary');
-            summary.textContent = '🔧 Context JSON (Super Admin)';
-            details.appendChild(summary);
+            const det = document.createElement('details');
+            det.style.marginTop = '12px';
+            const sum = document.createElement('summary');
+            sum.style.cssText = 'cursor:pointer;font-size:13px;color:#6b7280;';
+            sum.textContent = '🔧 Context JSON (Super Admin)';
+            det.appendChild(sum);
             const ctxArea = document.createElement('textarea');
-            ctxArea.id = 'ai_context_json';
+            ctxArea.id = 'ld_context_json';
             ctxArea.rows = 10;
             ctxArea.style.cssText = 'width:100%;box-sizing:border-box;font-family:monospace;font-size:12px;margin-top:8px;';
-            ctxArea.value = JSON.stringify(enrichedContext, null, 2);
-            details.appendChild(ctxArea);
-            content.appendChild(details);
+            ctxArea.value = JSON.stringify(enriched, null, 2);
+            det.appendChild(ctxArea);
+            content.appendChild(det);
         }
 
         // Response area
-        const responseDiv = document.createElement('div');
-        responseDiv.id = 'ai_response_area';
-        responseDiv.style.display = 'none';
-        content.appendChild(responseDiv);
+        const respDiv = document.createElement('div');
+        respDiv.id = 'ld_response';
+        respDiv.style.display = 'none';
+        content.appendChild(respDiv);
 
-        // Actions
         modal.setActions([
             {
                 label: 'Analyze',
                 className: 'aiintegration-btn aiintegration-btn-primary',
                 onClick: (close, btn) => {
-                    const question = document.getElementById('ai_question').value;
+                    const question = (document.getElementById('ld_question') || {}).value || '';
                     const provider = providerSelect.value;
 
-                    // Resolve context (Super Admin may have edited it)
-                    let ctx = enrichedContext;
+                    let ctx = enriched;
                     if (settings.is_super_admin) {
-                        try {
-                            ctx = JSON.parse(document.getElementById('ai_context_json').value || '{}');
-                        } catch (e) {
-                            const ra = document.getElementById('ai_response_area');
-                            ra.style.display = 'block';
-                            ra.innerHTML = '<div class="aiintegration-error">Invalid JSON in context.</div>';
-                            return;
+                        const ctxEl = document.getElementById('ld_context_json');
+                        if (ctxEl) {
+                            try { ctx = JSON.parse(ctxEl.value || '{}'); }
+                            catch (_) {
+                                renderResp('ld_response', null, 'Invalid JSON in context field.');
+                                return;
+                            }
                         }
                     }
 
@@ -462,16 +432,12 @@
 
                     Core.callAI(question, ctx, provider)
                         .then(data => {
-                            const ra = document.getElementById('ai_response_area');
-                            ra.style.display = 'block';
-                            ra.innerHTML = '<div class="aiintegration-response">' + Core.renderText(data.response || '') + '</div>';
+                            renderResp('ld_response', data.response, null);
                             btn.disabled = false;
                             btn.textContent = 'Analyze';
                         })
                         .catch(err => {
-                            const ra = document.getElementById('ai_response_area');
-                            ra.style.display = 'block';
-                            ra.innerHTML = '<div class="aiintegration-error">' + Core.escapeHtml(err.message) + '</div>';
+                            renderResp('ld_response', null, err.message);
                             btn.disabled = false;
                             btn.textContent = 'Analyze';
                         });
@@ -480,75 +446,78 @@
             {
                 label: 'Close',
                 className: 'aiintegration-btn aiintegration-btn-secondary',
-                onClick: (close) => close()
+                onClick: close => close()
             }
         ]);
     }
 
-    /**
-     * Build a default AI question that includes key statistics.
-     */
-    function buildDefaultQuestion(itemData, ctx) {
-        let q = `Analyze this Zabbix monitoring item:\n`;
-        q += `- Host: ${itemData.host}\n`;
-        q += `- Item: ${itemData.name}\n`;
-        q += `- Current value: ${itemData.lastValue}\n`;
+    function renderResp(id, text, errMsg) {
+        const Core = window.AIIntegrationCore;
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.display = 'block';
+        if (errMsg) {
+            el.innerHTML = `<div class="aiintegration-error">${Core.escapeHtml(errMsg)}</div>`;
+        } else {
+            el.innerHTML = `<div class="aiintegration-response">${Core.renderText(text || '')}</div>`;
+        }
+    }
 
-        if (ctx.statistics && ctx.statistics.count > 0) {
-            const s = ctx.statistics;
-            q += `- Historical mean: ${s.mean}, std dev: ${s.stddev} (${s.count} samples)\n`;
-            q += `- Value range: ${s.min} – ${s.max}\n`;
+    function buildDefaultQuestion(rowData, ctx) {
+        const s = ctx.statistics;
+        let q = `Analyze this Zabbix monitoring item:\n`;
+        q += `• Host: ${rowData.host}\n`;
+        q += `• Item: ${rowData.name}\n`;
+        q += `• Current value: ${rowData.lastValue}\n`;
+
+        if (s && s.count >= 3) {
+            q += `• Historical mean: ${s.mean}  StdDev: ${s.stddev}  (${s.count} samples)\n`;
+            q += `• Range: ${s.min} – ${s.max}\n`;
             if (s.zscore !== null) {
-                q += `- Z-score: ${s.zscore} (${s.isAnomaly ? 'ANOMALY - value is more than 3 standard deviations from mean' : 'within normal range'})\n`;
+                q += `• Z-score: ${s.zscore} → ${
+                    s.anomalyLevel === 'severe'      ? 'SEVERE ANOMALY (>3σ from mean)' :
+                    s.anomalyLevel === 'significant' ? 'SIGNIFICANT deviation (>2.5σ)' :
+                    s.anomalyLevel === 'mild'        ? 'mildly elevated (>2σ)' :
+                                                      'within normal range'
+                }\n`;
             }
         }
-
-        if (ctx.trend) {
-            q += `- 30-day trend: ${ctx.trend.direction}\n`;
+        if (ctx.trend && ctx.trend.direction) {
+            q += `• 30-day trend: ${ctx.trend.direction}\n`;
         }
 
-        q += `\nPlease:\n`;
-        q += `1. Assess whether the current value is normal or anomalous\n`;
-        q += `2. Explain what the metric represents and its significance\n`;
-        q += `3. Identify any patterns or concerns from the trend data\n`;
-        q += `4. Provide actionable recommendations if needed`;
+        q += `\nPlease:\n1. Assess whether the current value is normal or requires attention\n`;
+        q += `2. Explain what this metric represents and its significance\n`;
+        q += `3. Identify any patterns or concerns from the statistical data\n`;
+        q += `4. Provide actionable recommendations`;
 
         return q;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Provider select helper
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Provider select ───────────────────────────────────────────────────────
 
     function createProviderSelect() {
-        const select = document.createElement('select');
-        select.id = 'provider_select';
-        select.style.cssText = 'font-size:13px;padding:4px 8px;border-radius:4px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.9);color:#1f1f1f;';
+        const sel = document.createElement('select');
+        sel.style.cssText = 'font-size:13px;padding:4px 8px;border-radius:4px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.9);color:#1f1f1f;';
 
-        if (!settings || !settings.providers || settings.providers.length === 0) {
-            const opt = document.createElement('option');
-            opt.value = 'openai';
-            opt.textContent = 'No providers';
-            select.appendChild(opt);
-            select.disabled = true;
-            return select;
+        if (!settings || !settings.providers || !settings.providers.length) {
+            const o = document.createElement('option');
+            o.value = 'openai'; o.textContent = 'No providers configured';
+            sel.appendChild(o); sel.disabled = true; return sel;
         }
 
-        settings.providers.forEach(provider => {
-            const opt = document.createElement('option');
-            opt.value = provider.name;   // provider.name is the key (e.g. 'openai', 'anthropic')
-            opt.textContent = provider.name + (provider.model ? ' – ' + provider.model : '');
-            if (provider.name === settings.default_provider) opt.selected = true;
-            select.appendChild(opt);
+        settings.providers.forEach(p => {
+            const o = document.createElement('option');
+            o.value = p.name;
+            o.textContent = p.name + (p.model ? ' – ' + p.model : '');
+            if (p.name === settings.default_provider) o.selected = true;
+            sel.appendChild(o);
         });
 
-        return select;
+        return sel;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Bootstrap
-    // ─────────────────────────────────────────────────────────────────────────
-
+    // ── Bootstrap ─────────────────────────────────────────────────────────────
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => waitForDependencies(init));
     } else {
