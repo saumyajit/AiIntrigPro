@@ -5,7 +5,7 @@ $custom_css = '
 <style>
 .ai-config-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 20px;
+    padding: 14px;
     border-radius: 4px;
     margin-bottom: 20px;
     color: white;
@@ -14,14 +14,14 @@ $custom_css = '
 
 .ai-config-header h2 {
     margin: 0;
-    font-size: 24px;
+    font-size: 28px;
     font-weight: 600;
 }
 
 .ai-config-header p {
-    margin: 5px 0 0 0;
+    margin: 10px 0 0 0;
     opacity: 0.9;
-    font-size: 14px;
+    font-size: 15px;
 }
 
 .provider-tabs .tabs-container {
