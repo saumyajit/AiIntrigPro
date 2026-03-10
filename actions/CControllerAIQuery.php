@@ -7,9 +7,12 @@ use Modules\AIIntegration\ConfigStorage;
 use Modules\AIIntegration\AIProviderHelper;
 
 /**
- * Handles Quick Action AI queries from the frontend.
- * Uses AIProviderHelper so that Anthropic, Gemini, and all other providers
- * are dispatched through the correct API format.
+ * Handles Quick-Action AI queries from the frontend JS.
+ *
+ * Uses the shared AIProviderHelper so that every provider type
+ * (Anthropic, Gemini, OpenAI-compatible) is dispatched correctly.
+ * The original private callAPI() only used OpenAI format which broke
+ * Anthropic and Gemini quick-actions.
  */
 class CControllerAIQuery extends CController {
 
@@ -22,57 +25,67 @@ class CControllerAIQuery extends CController {
     }
 
     protected function checkPermissions(): bool {
-        return true; // Allow all authenticated users
+        return true; // all authenticated users
     }
 
     protected function doAction(): void {
-        // Ensure clean JSON output
         while (ob_get_level()) {
             ob_end_clean();
         }
         ob_start();
 
+        $result = [];
+
         try {
-            // Parse JSON body
-            $input = file_get_contents('php://input');
+            $input = (string) file_get_contents('php://input');
             $data  = json_decode($input, true);
+
+            // Ensure $data is always an array even if JSON decode failed
+            if (!is_array($data)) {
+                $data = [];
+            }
 
             error_log('AI Integration Query - Input: ' . print_r($data, true));
 
-            $question = $data['question'] ?? '';
-            $provider = $data['provider']  ?? '';
-            $context  = $data['context']   ?? [];
+            $question = trim($data['question'] ?? '');
+            $provider = trim($data['provider']  ?? '');
+            $context  = is_array($data['context'] ?? null) ? $data['context'] : [];
 
-            if (empty($question)) {
+            if ($question === '') {
                 throw new \Exception('Question is required');
             }
 
-            // Load configuration
             $config = ConfigStorage::load();
 
-            // Resolve provider
-            if (empty($provider) || $provider === 'undefined') {
+            // Fall back to default provider if none specified
+            if ($provider === '' || $provider === 'undefined') {
                 $provider = $config['default_provider'] ?? 'openai';
             }
 
             error_log("AI Integration Query - Using provider: $provider");
 
             if (!isset($config[$provider])) {
-                throw new \Exception("Provider '$provider' not found in config");
+                throw new \Exception("Provider '$provider' not found in configuration.");
             }
 
             $providerConfig = $config[$provider];
 
             if (empty($providerConfig['enabled'])) {
-                throw new \Exception("Provider '$provider' is not enabled. Please enable it in Administration → AI Integration.");
+                throw new \Exception(
+                    "Provider '$provider' is not enabled. " .
+                    "Please enable it in Administration → AI Integration."
+                );
             }
 
             if (empty($providerConfig['api_key'])) {
-                throw new \Exception("No API key configured for provider '$provider'.");
+                throw new \Exception(
+                    "No API key configured for '$provider'. " .
+                    "Please set it in Administration → AI Integration."
+                );
             }
 
-            // Delegate to the shared helper which handles all provider types
-            // (OpenAI-compatible, Anthropic, Gemini)
+            // Dispatch through the shared helper — handles Anthropic, Gemini, and
+            // all OpenAI-compatible providers with the correct request format.
             $aiResult = AIProviderHelper::sendToAI($provider, $providerConfig, $question, $context);
 
             if (!$aiResult['success']) {
@@ -93,7 +106,6 @@ class CControllerAIQuery extends CController {
             ];
         }
 
-        // Clean buffer and send JSON
         ob_clean();
         header('Content-Type: application/json');
         echo json_encode($result);

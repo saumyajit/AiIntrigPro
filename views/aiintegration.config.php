@@ -541,42 +541,81 @@ $page->addItem($form);
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('ai_config_form');
-    const tabButtons = document.querySelectorAll('.tabs-nav button');
+    // ── Tab tracking ──────────────────────────────────────────────────────────
+    // Zabbix 7.x CTabView uses <a> tags (not <button> with data-target),
+    // so we track the active tab via URL hash changes instead of button clicks.
+
     let currentTab = 'general';
-    
-    // Restore last active tab from URL hash or localStorage
-    const savedTab = window.location.hash.substring(1) || localStorage.getItem('ai_config_active_tab') || 'general';
-    
-    // Track current tab
-    tabButtons.forEach((button, index) => {
-        button.addEventListener('click', function() {
-            const tabId = this.getAttribute('data-target');
-            if (tabId) {
-                currentTab = tabId;
-                localStorage.setItem('ai_config_active_tab', tabId);
-                window.location.hash = tabId;
-            }
-        });
-        
-        // Activate saved tab
-        if (button.getAttribute('data-target') === savedTab) {
-            setTimeout(() => button.click(), 100);
+
+    /**
+     * Derive the active provider tab from the page state.
+     * Priority: URL hash → localStorage → 'general'
+     */
+    function getActiveTab() {
+        const hash = window.location.hash.replace('#', '').trim();
+        if (hash) return hash;
+        return localStorage.getItem('ai_config_active_tab') || 'general';
+    }
+
+    // Keep currentTab in sync whenever the hash changes (tab clicks update the hash)
+    window.addEventListener('hashchange', function() {
+        const tab = getActiveTab();
+        if (tab) {
+            currentTab = tab;
+            localStorage.setItem('ai_config_active_tab', tab);
         }
     });
-    
+
+    // Also intercept clicks on any tab link that sets the hash
+    document.querySelectorAll('.tabs-nav a, .tabs-nav button, .tabs-nav li').forEach(function(el) {
+        el.addEventListener('click', function() {
+            // Allow a brief moment for the hash to update
+            setTimeout(function() {
+                const tab = getActiveTab();
+                if (tab) {
+                    currentTab = tab;
+                    localStorage.setItem('ai_config_active_tab', tab);
+                }
+            }, 50);
+        });
+    });
+
+    // Restore last active tab on page load
+    (function() {
+        const savedTab = getActiveTab();
+        if (savedTab && savedTab !== 'general') {
+            currentTab = savedTab;
+            // Try to activate the matching tab via Zabbix's own mechanism
+            const tabLink = document.querySelector(
+                '.tabs-nav a[href="#' + savedTab + '"], ' +
+                '.tabs-nav button[data-id="' + savedTab + '"], ' +
+                '.tabs-nav [data-target="' + savedTab + '"]'
+            );
+            if (tabLink) {
+                setTimeout(function() { tabLink.click(); }, 100);
+            }
+        }
+    })();
+
+    // ── Save & Test handlers ──────────────────────────────────────────────────
+
     // Handle Save - submit entire form
     form.addEventListener('submit', function(e) {
         e.preventDefault();
         saveAllConfig();
     });
-    
+
     // Handle Test
     const testBtn = document.querySelector('button[name="test"]');
     if (testBtn) {
         testBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            if (currentTab !== 'general') {
-                testConnection(currentTab);
+            // Re-read active tab at click time in case hashchange hasn't fired yet
+            const tab = getActiveTab();
+            if (tab && tab !== 'general') {
+                testConnection(tab);
+            } else {
+                showMessage('<?php echo _('Please select a provider tab (e.g. OpenAI, Anthropic) before testing'); ?>', 'warning');
             }
         });
     }
@@ -605,7 +644,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 showMessage(data.message, 'success');
                 // Reload with hash to restore tab
                 setTimeout(() => {
-                    window.location.href = 'zabbix.php?action=aiintegration.config#' + currentTab;
+                    window.location.href = 'zabbix.php?action=aiintegration.config#' + getActiveTab();
                     window.location.reload();
                 }, 1500);
             } else {
