@@ -783,7 +783,7 @@
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.textContent = text;
-            btn.style.cssText = 'padding:6px 12px;background:white;' +
+            btn.style.cssText = 'padding:0px 8px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);' +
                 'border:1px solid #d1d5db;border-radius:4px;cursor:pointer;font-size:13px;';
             btn.addEventListener('click', () => showHostAssistantModal(dialog, action, settings));
             section.appendChild(btn);
