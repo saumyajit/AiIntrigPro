@@ -45,18 +45,7 @@
 	}
 
 	function getSparkleIcon(size) {
-		return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="display:block; filter: drop-shadow(0 0 3px #a855f7);">
-			<defs>
-				<linearGradient id="aiSparkleGradProb" x1="0%" y1="0%" x2="100%" y2="100%">
-					<stop offset="0%" style="stop-color:#a855f7"/>
-					<stop offset="50%" style="stop-color:#6366f1"/>
-					<stop offset="100%" style="stop-color:#3b82f6"/>
-				</linearGradient>
-			</defs>
-			<path d="M12 0L13.5 8.5L22 10L13.5 11.5L12 20L10.5 11.5L2 10L10.5 8.5L12 0Z" fill="url(#aiSparkleGradProb)"/>
-			<path d="M19 14L19.75 17.25L23 18L19.75 18.75L19 22L18.25 18.75L15 18L18.25 17.25L19 14Z" fill="#a855f7" opacity="0.9"/>
-			<path d="M5 14L5.5 16.5L8 17L5.5 17.5L5 20L4.5 17.5L2 17L4.5 16.5L5 14Z" fill="#6366f1" opacity="0.8"/>
-		</svg>`;
+		return '<span style="font-size:' + size + 'px; line-height:1; display:block;">🧠</span>';
 	}
 
 	function addHeaderColumn(table) {
