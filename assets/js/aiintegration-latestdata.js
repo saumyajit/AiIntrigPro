@@ -74,12 +74,12 @@
         const tbody = table.querySelector('tbody');
         if (!tbody) return;
 
-        // Add "IA" header column once
+        // Add "AI" header column once
         const thead = table.querySelector('thead tr');
         if (thead && !thead.querySelector('.aiintegration-header')) {
             const th = document.createElement('th');
             th.className = 'aiintegration-header';
-            th.textContent = 'IA';
+            th.textContent = 'AI';
             th.style.cssText = 'width:50px;text-align:center;';
             thead.appendChild(th);
         }
