@@ -68,7 +68,7 @@
 		const headerRow = thead.querySelector('tr');
 		if (headerRow) {
 			const th = document.createElement('th');
-			th.innerHTML = '<span title="AI Analysis">IA</span>';
+			th.innerHTML = '<span title="AI Analysis">AnalytIQ</span>';
 			th.style.width = '50px';
 			th.style.textAlign = 'center';
 			headerRow.appendChild(th);
