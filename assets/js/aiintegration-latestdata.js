@@ -117,8 +117,18 @@
         btn.style.cssText = 'background:none;border:none;cursor:pointer;padding:4px;transition:all 0.2s ease;display:inline-flex;align-items:center;justify-content:center;';
 
         const uid = Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-        btn.innerHTML = '<span style="font-size:18px; line-height:1;">🧠</span>';
-        
+        btn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <defs>
+                    <linearGradient id="spk${uid}" x1="2" y1="2" x2="22" y2="22">
+                        <stop offset="0%" style="stop-color:#a855f7"/>
+                        <stop offset="100%" style="stop-color:#6366f1"/>
+                    </linearGradient>
+                </defs>
+                <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"
+                      fill="url(#spk${uid})" stroke="#a855f7" stroke-width="1.5"/>
+            </svg>`;
+
         btn.addEventListener('mouseenter', () => {
             btn.style.transform = 'scale(1.2)';
             const svg = btn.querySelector('svg');
