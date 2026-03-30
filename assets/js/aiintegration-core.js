@@ -75,7 +75,7 @@ window.AIIntegrationCore = (function() {
         header.style.cssText = 'padding:16px 20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;display:flex;align-items:center;gap:10px;border-radius:8px 8px 0 0;';
 
         const titleEl = document.createElement('h3');
-        titleEl.style.cssText = 'margin:0;color:#ffffff;font-size:16px;font-weight:600;white-space:nowrap;';
+        titleEl.style.cssText = 'margin:0;color:#ffffff;font-size:16px;font-family:"Trebuchet MS";font-weight:600;white-space:nowrap;';
         titleEl.textContent = title;
         header.appendChild(titleEl);
 
