@@ -72,16 +72,28 @@ window.AIIntegrationCore = (function() {
         modal.style.cssText = 'background:white;border-radius:8px;width:90%;max-width:700px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.3);';
 
         const header = document.createElement('div');
-        header.style.cssText = 'padding:20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;display:flex;justify-content:space-between;align-items:center;border-radius:8px 8px 0 0;';
-        header.innerHTML = `<h3 style="margin:0;">${escapeHtml(title)}</h3>`;
+        header.style.cssText = 'padding:16px 20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;display:flex;align-items:center;gap:10px;border-radius:8px 8px 0 0;';
+
+        const titleEl = document.createElement('h3');
+        titleEl.style.cssText = 'margin:0;color:#ffffff;font-size:16px;font-weight:600;white-space:nowrap;';
+        titleEl.textContent = title;
+        header.appendChild(titleEl);
+
+        // Spacer pushes everything after it to the right
+        const spacer = document.createElement('div');
+        spacer.style.cssText = 'flex:1;';
+        header.appendChild(spacer);
 
         if (options && options.headerExtra) {
+            options.headerExtra.style.flexShrink = '0';
             header.appendChild(options.headerExtra);
         }
 
         const closeBtn = document.createElement('button');
         closeBtn.innerHTML = '×';
-        closeBtn.style.cssText = 'background:none;border:none;color:white;font-size:32px;cursor:pointer;padding:0;width:32px;height:32px;line-height:1;';
+        closeBtn.style.cssText = 'background:rgba(255,255,255,0.15);border:none;color:white;font-size:24px;cursor:pointer;padding:0;width:32px;height:32px;line-height:1;border-radius:4px;flex-shrink:0;transition:background 0.2s;';
+        closeBtn.onmouseenter = () => closeBtn.style.background = 'rgba(255,255,255,0.3)';
+        closeBtn.onmouseleave = () => closeBtn.style.background = 'rgba(255,255,255,0.15)';
         closeBtn.onclick = () => closeModal();
         header.appendChild(closeBtn);
 
